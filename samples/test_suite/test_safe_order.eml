@@ -1,0 +1,23 @@
+Delivered-To: shyam@example.com
+Received: from mail.amazon.com ([52.94.236.248])
+  by mx.example.com with ESMTPS; Mon, 22 Sep 2025 14:00:00 +0000
+Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=amazon.com; dkim=pass; dmarc=pass
+DKIM-Signature: v=1; a=rsa-sha256; d=amazon.com; s=default
+Message-ID: <order123@amazon.com>
+From: "Amazon.in" <auto-confirm@amazon.in>
+Reply-To: auto-confirm@amazon.in
+Return-Path: <auto-confirm@amazon.in>
+To: shyam@example.com
+Subject: Your Amazon.in order has shipped
+Date: Mon, 22 Sep 2025 13:59:00 +0000
+Content-Type: text/plain; charset="UTF-8"
+
+Hello Shyam,
+
+Your recent order #402-1234567-8901234 has shipped and is on its way.
+
+Track your package: https://www.amazon.in/track/402-1234567-8901234
+
+Expected delivery: Thursday, 25 September.
+
+Thank you for shopping with us.

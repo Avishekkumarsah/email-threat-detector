@@ -1,0 +1,19 @@
+Delivered-To: shyam@example.com
+Received: from mail.legituser.com ([198.51.100.10])
+  by mx.example.com with ESMTPS; Mon, 22 Sep 2025 16:00:00 +0000
+Authentication-Results: mx.example.com; spf=pass; dkim=pass; dmarc=pass
+Message-ID: <html01@legituser.com>
+From: "Newsletter Team" <team@legituser.com>
+Reply-To: team@legituser.com
+Return-Path: <team@legituser.com>
+To: shyam@example.com
+Subject: Check out our latest blog post
+Date: Mon, 22 Sep 2025 15:59:00 +0000
+Content-Type: text/html; charset="UTF-8"
+
+<html><body>
+<p>Hi Shyam,</p>
+<p>We just published a new blog post you might enjoy.</p>
+<p><a href="http://185.220.101.99/redirect?to=blog">www.legituser.com/blog</a></p>
+<p>Thanks for reading!</p>
+</body></html>

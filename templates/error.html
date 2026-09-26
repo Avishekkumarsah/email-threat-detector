@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Error {{ code }} | Email Threat Detector{% endblock %}
+
+{% block content %}
+<div class="error-page" role="main">
+  <div class="error-icon" aria-hidden="true">
+    {% if code == 404 %}🔍{% else %}⚠️{% endif %}
+  </div>
+  <p class="error-code" aria-label="Error {{ code }}">{{ code }}</p>
+  <p class="error-message">{{ message }}</p>
+  <p style="font-size:14px; color:var(--text-muted); margin-bottom:24px;">
+    {% if code == 404 %}The page you're looking for doesn't exist or has been moved.
+    {% else %}Something went wrong on our end. Please try again.
+    {% endif %}
+  </p>
+  <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
+    <a href="{{ url_for('index') }}" class="btn btn-primary" id="go-home-btn">
+      🏠 Go to Home
+    </a>
+    <a href="{{ url_for('history') }}" class="btn btn-outline" id="go-history-btn">
+      🕒 View History
+    </a>
+  </div>
+</div>
+{% endblock %}

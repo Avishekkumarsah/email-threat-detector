@@ -1,0 +1,35 @@
+Delivered-To: shyam@example.com
+Received: from mail.newsletter-service.com ([104.16.85.20])
+  by mx.example.com with ESMTPS; Mon, 22 Sep 2025 08:00:00 +0000
+Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=newsletter-service.com; dkim=pass; dmarc=pass
+DKIM-Signature: v=1; a=rsa-sha256; d=newsletter-service.com; s=default
+Message-ID: <news09@newsletter-service.com>
+From: "Tech Weekly" <news@newsletter-service.com>
+Reply-To: news@newsletter-service.com
+Return-Path: <bounce@newsletter-service.com>
+To: shyam@example.com
+Subject: This week in tech: 5 stories you should read
+Date: Mon, 22 Sep 2025 08:00:00 +0000
+Content-Type: multipart/mixed; boundary="NEWSBOUND"
+
+--NEWSBOUND
+Content-Type: text/plain; charset="UTF-8"
+
+Hi Shyam,
+
+Here's this week's roundup of tech news. Full articles are linked below.
+
+Read more: https://www.techweekly-news.com/issue/45
+
+See the attached PDF for the print edition.
+
+- Tech Weekly Team
+
+--NEWSBOUND
+Content-Type: application/pdf; name="tech_weekly_issue45.pdf"
+Content-Disposition: attachment; filename="tech_weekly_issue45.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQgdGVzdCBwZGYgY29udGVudCBmb3IgcHJvamVjdCBkZW1vLg==
+
+--NEWSBOUND--

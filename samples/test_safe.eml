@@ -1,0 +1,25 @@
+Delivered-To: shyam@example.com
+Received: from mail.college.edu ([8.8.8.8])
+  by mx.example.com with ESMTPS; Mon, 22 Sep 2025 09:00:12 +0000
+Received: from localhost ([127.0.0.1])
+  by mail.college.edu with ESMTP; Mon, 22 Sep 2025 08:59:50 +0000
+Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=college.edu; dkim=pass; dmarc=pass
+DKIM-Signature: v=1; a=rsa-sha256; d=college.edu; s=default; h=from:to:subject
+Message-ID: <a1b2c3d4@college.edu>
+From: "Dr. Rao" <rao@college.edu>
+Reply-To: rao@college.edu
+Return-Path: <rao@college.edu>
+To: shyam@example.com
+Subject: Reminder: Project review meeting tomorrow
+Date: Mon, 22 Sep 2025 08:59:00 +0000
+Content-Type: text/plain; charset="UTF-8"
+
+Hi Shyam,
+
+Just a reminder that our project review meeting is scheduled for tomorrow
+at 10 AM in the seminar hall. Please bring your progress report.
+
+You can find the previous meeting notes here: https://college.edu/notes/oct-review
+
+Regards,
+Dr. Rao

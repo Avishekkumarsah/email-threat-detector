@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard | Email Threat Detector{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:28px;">
+  <div>
+    <h1 class="page-title" style="display:flex; align-items:center; gap:10px;">
+      👑 Admin Management Console
+      <span style="font-size:12px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#fbbf24; padding:4px 10px; border-radius:20px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em;">Super Admin Access</span>
+    </h1>
+    <p class="page-subtitle">Platform-wide system metrics, user usage overview, and account management.</p>
+  </div>
+  <!-- Super Admin Credential Info Box -->
+  <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:14px; padding:14px 20px; min-width:260px;">
+    <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#fbbf24; font-weight:700; margin:0 0 8px;">🔐 Super Admin Account</p>
+    <p style="font-size:12px; color:#e2e8f0; margin:0 0 4px;"><span style="color:#64748b;">Email:</span>&nbsp;&nbsp;{{ super_admin_email }}</p>
+    <p style="font-size:11px; color:#64748b; margin:0;">Password set via <code style="background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px;">ADMIN_PASSWORD</code> env var</p>
+  </div>
+</div>
+
+<!-- System Statistics Metrics Grid -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:18px; margin-bottom:32px;">
+  
+  <!-- Total Users -->
+  <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.2); border-radius:16px; padding:22px; display:flex; align-items:center; gap:16px;">
+    <div style="width:52px; height:52px; background:rgba(99,102,241,0.15); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:24px;">👥</div>
+    <div>
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 4px; font-weight:700;">Total Platform Users</p>
+      <p style="font-size:26px; font-weight:800; color:#fff; margin:0; font-family:'JetBrains Mono',monospace;">{{ stats.total_users }}</p>
+    </div>
+  </div>
+
+  <!-- Total Scans -->
+  <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.2); border-radius:16px; padding:22px; display:flex; align-items:center; gap:16px;">
+    <div style="width:52px; height:52px; background:rgba(139,92,246,0.15); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:24px;">📊</div>
+    <div>
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 4px; font-weight:700;">Total Emails Scanned</p>
+      <p style="font-size:26px; font-weight:800; color:#fff; margin:0; font-family:'JetBrains Mono',monospace;">{{ stats.total_scans }}</p>
+    </div>
+  </div>
+
+  <!-- Active IMAP Monitors -->
+  <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.2); border-radius:16px; padding:22px; display:flex; align-items:center; gap:16px;">
+    <div style="width:52px; height:52px; background:rgba(34,197,94,0.15); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:24px;">📡</div>
+    <div>
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 4px; font-weight:700;">Active Live Monitors</p>
+      <p style="font-size:26px; font-weight:800; color:#86efac; margin:0; font-family:'JetBrains Mono',monospace;">{{ stats.active_monitors }}</p>
+    </div>
+  </div>
+
+  <!-- Verdict Summary -->
+  <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.2); border-radius:16px; padding:22px;">
+    <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 8px; font-weight:700;">Threat Verdict Breakdown</p>
+    <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:600;">
+      <span style="color:#4ade80;">Safe: {{ stats.safe_scans }}</span>
+      <span style="color:#fbbf24;">Suspicious: {{ stats.suspicious_scans }}</span>
+      <span style="color:#f87171;">Dangerous: {{ stats.dangerous_scans }}</span>
+    </div>
+  </div>
+</div>
+
+<!-- User Directory -->
+<div class="card" style="margin-bottom:32px;">
+  <div class="card-header-inner">
+    <span>👥</span>
+    <div>
+      <p class="card-title">Registered SaaS User Accounts</p>
+      <p class="card-subtitle">List of all users registered on the platform and their scan usage</p>
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="history-table" aria-label="Registered user accounts">
+      <thead>
+        <tr>
+          <th>User ID</th>
+          <th>User Account</th>
+          <th>Email Address</th>
+          <th>Registered On</th>
+          <th>Scans Conducted</th>
+          <th>Live Monitoring</th>
+          <th>Role</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td><span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-muted);">#{{ u.id }}</span></td>
+          <td>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="width:32px; height:32px; background:linear-gradient(135deg,#6366f1,#8b5cf6); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:#fff;">
+                {{ u.username[0]|upper }}
+              </div>
+              <strong style="color:#e2e8f0; font-size:14px;">{{ u.username }}</strong>
+            </div>
+          </td>
+          <td style="font-size:13px; color:var(--text-secondary);">{{ u.email }}</td>
+          <td style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
+            {{ u.created_at[:10] if u.created_at else '—' }}
+          </td>
+          <td>
+            <span style="display:inline-block; padding:3px 10px; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.25); border-radius:12px; font-size:12px; font-weight:700; color:#818cf8; font-family:'JetBrains Mono',monospace;">
+              {{ u.scan_count }} scans
+            </span>
+          </td>
+          <td>
+            {% if u.imap_active %}
+              <span style="color:#4ade80; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+                <span style="width:8px; height:8px; background:#4ade80; border-radius:50%; display:inline-block;"></span> Active ({{ u.imap_email }})
+              </span>
+            {% else %}
+              <span style="color:#64748b; font-size:12px;">Inactive</span>
+            {% endif %}
+          </td>
+          <td>
+            {% set is_sa = (u.email|lower == super_admin_email|lower) %}
+            {% if is_sa %}
+              <!-- Super Admin: protected badge -->
+              <span style="padding:3px 10px; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.4); border-radius:12px; font-size:11px; font-weight:700; color:#fbbf24; display:inline-flex; align-items:center; gap:5px;">
+                🔐 Super Admin
+              </span>
+            {% elif u.is_admin %}
+              <span style="padding:3px 10px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); border-radius:12px; font-size:11px; font-weight:700; color:#fbbf24;">
+                👑 Admin
+              </span>
+            {% else %}
+              <span style="padding:3px 10px; background:rgba(148,163,184,0.1); border:1px solid rgba(148,163,184,0.2); border-radius:12px; font-size:11px; font-weight:600; color:#94a3b8;">
+                User
+              </span>
+            {% endif %}
+          </td>
+          <td>
+            {% set is_sa = (u.email|lower == super_admin_email|lower) %}
+            {% if is_sa %}
+              <!-- Super Admin row: lock button -->
+              <span title="Protected — cannot be modified" style="font-size:18px; cursor:default; opacity:0.6;">🔒</span>
+            {% elif u.id == current_user.id %}
+              <span style="font-size:11px; color:var(--text-muted); font-style:italic;">(You)</span>
+            {% else %}
+            <form action="{{ url_for('admin_toggle_role', user_id=u.id) }}" method="post" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px;">
+                {{ 'Revoke Admin' if u.is_admin else 'Make Admin' }}
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Platform Activity Stream -->
+<div class="card">
+  <div class="card-header-inner">
+    <span>🌐</span>
+    <div>
+      <p class="card-title">Recent Platform Scans Across All Users</p>
+      <p class="card-subtitle">Real-time audit log of forensic email scans performed on the system</p>
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="history-table" aria-label="Recent platform-wide scans">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>File / Subject</th>
+          <th>Sender</th>
+          <th>Score</th>
+          <th>Verdict</th>
+          <th>Scan Date</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in recent_scans %}
+        <tr>
+          <td><span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-muted);">#{{ s.id }}</span></td>
+          <td style="font-size:13px; color:#e2e8f0; font-weight:600; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ s.filename }}</td>
+          <td style="font-size:13px; color:var(--text-secondary); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ s.sender or '—' }}</td>
+          <td><span style="font-family:'JetBrains Mono',monospace; font-weight:700;">{{ s.final_score }}/100</span></td>
+          <td>
+            {% set vc = {'Safe':'safe','Suspicious':'suspicious','Dangerous':'dangerous'}[s.verdict] %}
+            <span class="verdict-badge {{ vc }}" style="font-size:11px; padding:3px 8px;">{{ s.verdict }}</span>
+          </td>
+          <td style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">{{ s.scan_date[:16] if s.scan_date else '—' }}</td>
+          <td>
+            <a href="{{ url_for('result', scan_id=s.id) }}" class="btn btn-outline btn-sm">View Report</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align:center; color:var(--text-muted); padding:30px;">No scans recorded on the platform yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

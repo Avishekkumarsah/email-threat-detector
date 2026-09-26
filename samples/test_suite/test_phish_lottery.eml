@@ -1,0 +1,17 @@
+Delivered-To: victim@example.com
+Received: from unknown (HELO mail.freemailer.net) (192.0.2.99)
+  by mx.example.com with SMTP; Mon, 22 Sep 2025 12:20:00 +0000
+Authentication-Results: mx.example.com; spf=none; dkim=fail; dmarc=fail
+From: "Prize Department" <winner@freemailer.net>
+Reply-To: claim@xn--gogle-2xa.com
+Return-Path: <bounce@xn--gogle-2xa.com>
+To: victim@example.com
+Subject: CONGRATULATIONS!!! YOU HAVE WON $500,000 !!!
+Date: Mon, 22 Sep 2025 12:19:00 +0000
+Content-Type: text/plain; charset="UTF-8"
+
+CONGRATULATIONS! You have won $500,000 in our international lottery draw.
+
+To claim your prize, click here immediately: http://xn--gogle-2xa.com/claim?id=88214
+
+This offer expires in 24 hours. Act now to claim your reward before it expires!

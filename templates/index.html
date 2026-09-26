@@ -1,0 +1,897 @@
+{% extends "base.html" %}
+{% block title %}AI Email Threat Detector | Forensic Intelligence Platform{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ─── Homepage Override — Full Dark Theme ─── */
+  body { background: #060d1f; }
+  .page-wrapper { max-width: 100%; padding: 0; }
+  .flash-container { max-width: 1200px; margin: 0 auto; padding: 16px 32px 0; }
+
+  /* ─── Canvas Particle Background ─── */
+  #hero-canvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ─── HERO SECTION ─── */
+  .home-hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex; align-items: center;
+    overflow: hidden;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(99,102,241,0.18) 0%, transparent 70%),
+                radial-gradient(ellipse 60% 40% at 80% 80%, rgba(6,182,212,0.10) 0%, transparent 70%),
+                #060d1f;
+    padding: 0 32px;
+  }
+
+  /* animated grid overlay */
+  .home-hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(99,102,241,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,102,241,0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black 30%, transparent 100%);
+    pointer-events: none; z-index: 0;
+    animation: gridShift 20s linear infinite;
+  }
+  @keyframes gridShift {
+    from { background-position: 0 0; }
+    to   { background-position: 48px 48px; }
+  }
+
+  .hero-inner {
+    position: relative; z-index: 2;
+    max-width: 1200px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr 480px;
+    gap: 80px; align-items: center;
+    padding: 100px 0 80px;
+    width: 100%;
+  }
+
+  /* ── Eyebrow badge ── */
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(99,102,241,0.12);
+    border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 100px;
+    padding: 6px 14px 6px 10px;
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #a5b4fc;
+    margin-bottom: 28px;
+    animation: fadeUp 0.6s ease both;
+  }
+  .hero-eyebrow .pulse-ring {
+    width: 8px; height: 8px;
+    background: #6366f1; border-radius: 50%;
+    position: relative;
+  }
+  .hero-eyebrow .pulse-ring::after {
+    content: '';
+    position: absolute; inset: -4px;
+    border: 2px solid rgba(99,102,241,0.4);
+    border-radius: 50%;
+    animation: ringPulse 1.8s ease-out infinite;
+  }
+  @keyframes ringPulse {
+    0%   { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  /* ── Main headline ── */
+  .hero-headline {
+    font-size: 68px; font-weight: 900;
+    line-height: 1.04; letter-spacing: -0.04em;
+    color: #fff; margin: 0 0 24px;
+    animation: fadeUp 0.7s 0.1s ease both;
+  }
+  .hero-headline .grad-text {
+    background: linear-gradient(135deg, #818cf8 0%, #6366f1 40%, #06b6d4 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-desc {
+    font-size: 18px; color: #64748b;
+    line-height: 1.75; max-width: 520px;
+    margin: 0 0 40px;
+    animation: fadeUp 0.7s 0.2s ease both;
+  }
+
+  /* ── CTA Row ── */
+  .hero-ctas {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    animation: fadeUp 0.7s 0.3s ease both;
+  }
+  .cta-primary {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #fff; padding: 15px 32px;
+    border-radius: 12px; font-size: 15px; font-weight: 700;
+    text-decoration: none;
+    box-shadow: 0 4px 24px rgba(99,102,241,0.4), 0 0 0 1px rgba(99,102,241,0.3);
+    transition: all 0.25s ease; position: relative; overflow: hidden;
+  }
+  .cta-primary::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+    opacity: 0; transition: opacity 0.25s;
+  }
+  .cta-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(99,102,241,0.5); color: #fff; }
+  .cta-primary:hover::before { opacity: 1; }
+
+  .cta-secondary {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: #94a3b8; font-size: 14px; font-weight: 600;
+    text-decoration: none; padding: 15px 24px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; transition: all 0.2s;
+  }
+  .cta-secondary:hover { color: #e2e8f0; border-color: rgba(255,255,255,0.16); background: rgba(255,255,255,0.04); }
+
+  /* ── Trust pills ── */
+  .hero-pills {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-top: 32px;
+    animation: fadeUp 0.7s 0.4s ease both;
+  }
+  .hero-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 100px; padding: 5px 12px;
+    font-size: 12px; font-weight: 500; color: #64748b;
+  }
+  .hero-pill span { color: #22c55e; }
+
+  /* ─── UPLOAD CARD (right column) ─── */
+  .upload-glass-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 24px;
+    backdrop-filter: blur(20px);
+    padding: 32px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+    animation: fadeLeft 0.7s 0.2s ease both;
+    position: relative; overflow: hidden;
+  }
+  .upload-glass-card::before {
+    content: '';
+    position: absolute; top: -50%; right: -30%;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .upload-card-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+  }
+  .upload-card-icon {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(79,70,229,0.2));
+    border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .upload-card-title { font-size: 17px; font-weight: 800; color: #f1f5f9; }
+  .upload-card-sub   { font-size: 12px; color: #475569; margin-top: 2px; }
+
+  /* Drop zone */
+  .drop-zone-dark {
+    border: 2px dashed rgba(99,102,241,0.25);
+    border-radius: 16px;
+    background: rgba(99,102,241,0.04);
+    cursor: pointer; transition: all 0.25s; position: relative;
+    overflow: hidden;
+  }
+  .drop-zone-dark:hover, .drop-zone-dark.dragover {
+    border-color: rgba(99,102,241,0.5);
+    background: rgba(99,102,241,0.08);
+    box-shadow: 0 0 0 4px rgba(99,102,241,0.08), inset 0 0 30px rgba(99,102,241,0.04);
+  }
+  .drop-zone-inner {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center;
+    padding: 36px 24px; min-height: 180px;
+  }
+  .drop-icon-wrap {
+    width: 64px; height: 64px;
+    background: rgba(99,102,241,0.12);
+    border: 2px solid rgba(99,102,241,0.2);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; margin-bottom: 14px;
+    transition: all 0.25s;
+  }
+  .drop-zone-dark:hover .drop-icon-wrap,
+  .drop-zone-dark.dragover .drop-icon-wrap {
+    background: rgba(99,102,241,0.22);
+    border-color: rgba(99,102,241,0.4);
+    transform: scale(1.08);
+  }
+  .drop-zone-label { font-size: 15px; font-weight: 700; color: #e2e8f0; margin: 0 0 6px; }
+  .drop-zone-sub   { font-size: 13px; color: #475569; margin: 0 0 14px; }
+  .drop-btn-link   { color: #818cf8; font-weight: 600; cursor: pointer; }
+  .drop-chips { display: flex; gap: 8px; }
+  .drop-chip {
+    background: rgba(99,102,241,0.12);
+    border: 1px solid rgba(99,102,241,0.2);
+    border-radius: 6px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; color: #818cf8;
+    font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em;
+  }
+
+  /* File selected */
+  .file-selected-dark {
+    display: none; flex-direction: column; align-items: center; gap: 10px;
+    padding: 28px 24px; text-align: center;
+  }
+  .file-selected-dark.visible { display: flex; }
+  .fs-icon {
+    width: 52px; height: 52px;
+    background: rgba(34,197,94,0.12);
+    border: 2px solid rgba(34,197,94,0.25);
+    border-radius: 14px; display: flex; align-items: center;
+    justify-content: center; font-size: 22px;
+  }
+  .fs-name { font-size: 14px; font-weight: 700; color: #e2e8f0; word-break: break-all; }
+  .fs-meta { font-size: 12px; color: #475569; }
+  .fs-remove {
+    background: none; border: none; color: #f87171;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    padding: 4px 10px; border-radius: 6px; transition: background 0.2s; font-family: inherit;
+  }
+  .fs-remove:hover { background: rgba(239,68,68,0.1); }
+
+  /* Analyze button */
+  .analyze-btn {
+    width: 100%; margin-top: 16px;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #fff; border: none; border-radius: 12px;
+    padding: 15px; font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: all 0.25s;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.35);
+  }
+  .analyze-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(99,102,241,0.5); }
+  .analyze-btn:active { transform: translateY(0); }
+
+  /* Scan loader */
+  .scan-loader-dark {
+    display: none; flex-direction: column; align-items: center; gap: 16px;
+    padding: 28px; text-align: center; margin-top: 16px;
+    background: rgba(99,102,241,0.06);
+    border: 1px solid rgba(99,102,241,0.15);
+    border-radius: 16px;
+  }
+  .scan-loader-dark.visible { display: flex; }
+  .spinner-glow {
+    width: 52px; height: 52px;
+    border: 3px solid rgba(99,102,241,0.15);
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    box-shadow: 0 0 20px rgba(99,102,241,0.3);
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .sl-title { font-size: 15px; font-weight: 700; color: #e2e8f0; margin: 0; }
+  .sl-sub   { font-size: 12px; color: #475569; animation: fpulse 1.5s ease-in-out infinite; }
+  @keyframes fpulse { 0%,100%{opacity:1;}50%{opacity:0.4;} }
+  .sl-stages { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; }
+  .sl-stage  { font-size: 12px; color: #475569; display: flex; align-items: center; gap: 8px; }
+  .sl-stage-icon { font-size: 13px; }
+
+  /* ─── STATS STRIP ─── */
+  .stats-strip {
+    background: rgba(255,255,255,0.02);
+    border-top: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .stats-strip-inner {
+    max-width: 1200px; margin: 0 auto;
+    padding: 32px;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+  }
+  .stat-item {
+    padding: 24px 32px;
+    display: flex; flex-direction: column; gap: 4px;
+    border-right: 1px solid rgba(255,255,255,0.05);
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-value {
+    font-size: 36px; font-weight: 900; color: #fff;
+    letter-spacing: -0.04em; line-height: 1;
+    background: linear-gradient(135deg, #fff, #94a3b8);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .stat-label { font-size: 13px; color: #475569; font-weight: 500; }
+  .stat-change { font-size: 11px; color: #22c55e; font-weight: 600; margin-top: 2px; }
+
+  /* ─── SECTION WRAPPER ─── */
+  .home-section { max-width: 1200px; margin: 0 auto; padding: 80px 32px; }
+  .home-section + .home-section { padding-top: 0; }
+
+  /* ─── Section label ─── */
+  .section-overline {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: #6366f1; margin-bottom: 16px;
+  }
+  .section-overline::before { content: ''; display: block; width: 20px; height: 2px; background: #6366f1; border-radius: 2px; }
+  .section-h2 {
+    font-size: 36px; font-weight: 900; color: #fff; margin: 0 0 12px;
+    letter-spacing: -0.03em; line-height: 1.1;
+  }
+  .section-lead { font-size: 16px; color: #475569; margin: 0 0 48px; max-width: 540px; }
+
+  /* ─── FEATURES GRID ─── */
+  .features-grid-dark {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .feat-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 20px; padding: 28px;
+    transition: all 0.3s ease; position: relative; overflow: hidden;
+  }
+  .feat-card::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent);
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .feat-card:hover {
+    background: rgba(99,102,241,0.06);
+    border-color: rgba(99,102,241,0.25);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(99,102,241,0.15);
+  }
+  .feat-card:hover::after { opacity: 1; }
+
+  .feat-icon-box {
+    width: 48px; height: 48px;
+    border-radius: 14px; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-bottom: 18px;
+    border: 1px solid transparent;
+  }
+  .feat-icon-box.indigo  { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.2); }
+  .feat-icon-box.cyan    { background: rgba(6,182,212,0.15);  border-color: rgba(6,182,212,0.2); }
+  .feat-icon-box.rose    { background: rgba(244,63,94,0.15);  border-color: rgba(244,63,94,0.2); }
+  .feat-icon-box.amber   { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.2); }
+  .feat-icon-box.emerald { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.2); }
+  .feat-icon-box.violet  { background: rgba(139,92,246,0.15); border-color: rgba(139,92,246,0.2); }
+
+  .feat-title { font-size: 15px; font-weight: 800; color: #f1f5f9; margin: 0 0 8px; }
+  .feat-desc  { font-size: 13px; color: #475569; line-height: 1.6; margin: 0; }
+  .feat-tag {
+    display: inline-block; margin-top: 14px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #6366f1;
+  }
+
+  /* ─── ANALYTICS SECTION ─── */
+  .analytics-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .analytics-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 20px; padding: 28px;
+    position: relative; overflow: hidden;
+  }
+  .analytics-card::before {
+    content: '';
+    position: absolute; bottom: -60px; right: -60px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .ac-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .ac-title { font-size: 13px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.07em; }
+  .ac-badge {
+    font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 100px;
+    background: rgba(99,102,241,0.12);
+    color: #818cf8; font-family: 'JetBrains Mono', monospace;
+  }
+  .ac-chart { height: 200px; position: relative; }
+
+  /* ─── HOW IT WORKS ─── */
+  .how-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 24px; }
+  .step-card {
+    position: relative; text-align: center; padding: 32px 20px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+  }
+  .step-card:not(:last-child)::after {
+    content: '→';
+    position: absolute; right: -16px; top: 50%;
+    transform: translateY(-50%);
+    color: rgba(99,102,241,0.3); font-size: 20px; z-index: 1;
+  }
+  .step-num {
+    width: 40px; height: 40px;
+    background: rgba(99,102,241,0.12);
+    border: 1px solid rgba(99,102,241,0.25);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 900; color: #818cf8;
+    margin: 0 auto 16px; font-family: 'JetBrains Mono', monospace;
+  }
+  .step-title { font-size: 14px; font-weight: 800; color: #e2e8f0; margin: 0 0 8px; }
+  .step-desc  { font-size: 12px; color: #475569; line-height: 1.6; margin: 0; }
+  .step-icon  { font-size: 24px; margin-bottom: 12px; display: block; }
+
+  /* ─── CTA BANNER ─── */
+  .cta-banner {
+    margin: 0 32px 80px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(6,182,212,0.08));
+    border: 1px solid rgba(99,102,241,0.2);
+    border-radius: 24px; padding: 60px;
+    text-align: center; position: relative; overflow: hidden;
+    max-width: 1136px; margin-left: auto; margin-right: auto; margin-bottom: 80px;
+  }
+  .cta-banner::before {
+    content: '';
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 600px; height: 300px;
+    background: radial-gradient(ellipse, rgba(99,102,241,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .cta-banner h2 { font-size: 36px; font-weight: 900; color: #fff; margin: 0 0 12px; letter-spacing: -0.03em; }
+  .cta-banner p  { font-size: 16px; color: #64748b; margin: 0 0 32px; }
+  .cta-banner .cta-primary { display: inline-flex; }
+
+  /* ─── Animations ─── */
+  @keyframes fadeUp  { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeLeft{ from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+  .anim-up { opacity: 0; animation: fadeUp 0.7s ease forwards; }
+  .anim-up-d1 { animation-delay: 0.1s; }
+  .anim-up-d2 { animation-delay: 0.2s; }
+  .anim-up-d3 { animation-delay: 0.3s; }
+  .anim-up-d4 { animation-delay: 0.4s; }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .hero-inner          { grid-template-columns: 1fr; gap: 48px; }
+    .hero-headline       { font-size: 48px; }
+    .features-grid-dark  { grid-template-columns: repeat(2,1fr); }
+    .how-grid            { grid-template-columns: repeat(2,1fr); }
+    .stats-strip-inner   { grid-template-columns: repeat(2,1fr); }
+    .stat-item:nth-child(2) { border-right: none; }
+    .stat-item:nth-child(3) { border-right: 1px solid rgba(255,255,255,0.05); }
+  }
+  @media (max-width: 768px) {
+    .home-hero           { padding: 0 20px; }
+    .hero-inner          { padding: 80px 0 60px; }
+    .hero-headline       { font-size: 36px; }
+    .features-grid-dark  { grid-template-columns: 1fr; }
+    .analytics-grid      { grid-template-columns: 1fr; }
+    .how-grid            { grid-template-columns: 1fr; }
+    .stats-strip-inner   { grid-template-columns: 1fr 1fr; }
+    .home-section        { padding: 60px 20px; }
+    .cta-banner          { padding: 40px 24px; margin: 0 20px 60px; }
+    .cta-banner h2       { font-size: 26px; }
+    .step-card::after    { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ══════════════════════════════════════════════════ -->
+<!--                   HERO                           -->
+<!-- ══════════════════════════════════════════════════ -->
+<section class="home-hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-inner">
+
+    <!-- Left: Copy -->
+    <div>
+      <div class="hero-eyebrow">
+        <div class="pulse-ring"></div>
+        AI-Powered Threat Intelligence
+      </div>
+
+      <h1 class="hero-headline">
+        Stop Email<br>
+        Threats <span class="grad-text">Before<br>They Strike</span>
+      </h1>
+
+      <p class="hero-desc">
+        Upload any suspicious email and our multi-layer forensic engine checks content,
+        headers, URLs, attachments, geolocation, and sender authentication — in seconds.
+      </p>
+
+      <div class="hero-ctas">
+        <a href="#scan-panel" class="cta-primary" onclick="document.getElementById('email_file_input').click(); return false;">
+          <span>🔍</span> Analyze an Email Now
+        </a>
+        <a href="{{ url_for('history') }}" class="cta-secondary">
+          View Scan History <span>→</span>
+        </a>
+      </div>
+
+      <div class="hero-pills">
+        <div class="hero-pill"><span>✓</span> ML-Powered Detection</div>
+        <div class="hero-pill"><span>✓</span> Real-Time IMAP Monitoring</div>
+        <div class="hero-pill"><span>✓</span> Forensic PDF Reports</div>
+        <div class="hero-pill"><span>✓</span> Zero Email Storage</div>
+      </div>
+    </div>
+
+    <!-- Right: Upload Card -->
+    <div id="scan-panel">
+      <div class="upload-glass-card">
+        <div class="upload-card-header">
+          <div class="upload-card-icon">🛡️</div>
+          <div>
+            <div class="upload-card-title">Threat Scanner</div>
+            <div class="upload-card-sub">Upload .EML or .TXT email file</div>
+          </div>
+        </div>
+
+        <form action="{{ url_for('scan') }}" method="post" enctype="multipart/form-data" id="scan-form" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="file" name="email_file" id="email_file_input" accept=".eml,.txt" hidden required>
+
+          <!-- Drop zone -->
+          <div id="drop-zone" class="drop-zone-dark" role="button" tabindex="0" aria-label="Upload email file">
+            <div class="drop-zone-inner" id="dz-default">
+              <div class="drop-icon-wrap">📧</div>
+              <p class="drop-zone-label">Drop your email file here</p>
+              <p class="drop-zone-sub">or <span class="drop-btn-link" id="dz-browse-link">browse from your computer</span></p>
+              <div class="drop-chips">
+                <span class="drop-chip">.EML</span>
+                <span class="drop-chip">.TXT</span>
+              </div>
+            </div>
+            <div class="file-selected-dark" id="dz-selected">
+              <div class="fs-icon">📄</div>
+              <span class="fs-name" id="fs-filename">file.eml</span>
+              <span class="fs-meta" id="fs-meta">Email file</span>
+              <button type="button" class="fs-remove" id="fs-remove">✕ Remove</button>
+            </div>
+          </div>
+
+          <!-- Analyze button -->
+          <button type="submit" class="analyze-btn" id="submit-btn">
+            <span>🔍</span> Analyze Email
+          </button>
+
+          <!-- Loader -->
+          <div class="scan-loader-dark" id="scan-loader">
+            <div class="spinner-glow"></div>
+            <div>
+              <p class="sl-title">Analyzing email…</p>
+              <p class="sl-sub">Running multi-layer forensic inspection</p>
+            </div>
+            <div class="sl-stages">
+              <div class="sl-stage"><span class="sl-stage-icon">📋</span> Inspecting email structure</div>
+              <div class="sl-stage"><span class="sl-stage-icon">🔍</span> Analyzing headers (SPF/DKIM/DMARC)</div>
+              <div class="sl-stage"><span class="sl-stage-icon">🔗</span> Checking URLs & redirects</div>
+              <div class="sl-stage"><span class="sl-stage-icon">📎</span> Inspecting attachments</div>
+              <div class="sl-stage"><span class="sl-stage-icon">🧠</span> Generating threat verdict</div>
+            </div>
+          </div>
+        </form>
+
+        <!-- Quick stats inside card -->
+        <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:1px; background:rgba(255,255,255,0.05); border-radius:12px; margin-top:20px; overflow:hidden;">
+          <div style="background:#0d1526; padding:14px; text-align:center;">
+            <div style="font-size:20px; font-weight:900; color:#fff; font-family:'JetBrains Mono',monospace;">{{ analytics.total_scans }}</div>
+            <div style="font-size:11px; color:#475569; margin-top:2px;">Total Scans</div>
+          </div>
+          <div style="background:#0d1526; padding:14px; text-align:center;">
+            <div style="font-size:20px; font-weight:900; color:#ef4444; font-family:'JetBrains Mono',monospace;">{{ analytics.verdict_counts.Dangerous }}</div>
+            <div style="font-size:11px; color:#475569; margin-top:2px;">Threats Found</div>
+          </div>
+          <div style="background:#0d1526; padding:14px; text-align:center;">
+            <div style="font-size:20px; font-weight:900; color:#22c55e; font-family:'JetBrains Mono',monospace;">{{ analytics.avg_score }}</div>
+            <div style="font-size:11px; color:#475569; margin-top:2px;">Avg Score</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!--                   STATS STRIP                    -->
+<!-- ══════════════════════════════════════════════════ -->
+<div class="stats-strip">
+  <div class="stats-strip-inner">
+    <div class="stat-item">
+      <div class="stat-value">{{ analytics.total_scans }}</div>
+      <div class="stat-label">Emails Analyzed</div>
+      <div class="stat-change">↑ Your personal scan history</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">{{ analytics.verdict_counts.Safe }}</div>
+      <div class="stat-label">Safe Emails</div>
+      <div class="stat-change" style="color:#22c55e;">✓ Verified clean</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">{{ analytics.verdict_counts.Suspicious }}</div>
+      <div class="stat-label">Suspicious Emails</div>
+      <div class="stat-change" style="color:#eab308;">⚠ Needs review</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">{{ analytics.verdict_counts.Dangerous }}</div>
+      <div class="stat-label">Dangerous Threats</div>
+      <div class="stat-change" style="color:#ef4444;">🚨 Blocked threats</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!--              HOW IT WORKS                        -->
+<!-- ══════════════════════════════════════════════════ -->
+<div class="home-section">
+  <div class="section-overline">How It Works</div>
+  <h2 class="section-h2">Forensic Analysis in 4 Steps</h2>
+  <p class="section-lead">From upload to downloadable PDF report in seconds — no technical knowledge required.</p>
+
+  <div class="how-grid">
+    {% for num, icon, title, desc in [
+      ('01','📁','Upload Email','Drag & drop or browse to upload your .EML or .TXT email file securely'),
+      ('02','🔬','Multi-Layer Scan','6 independent modules scan content, headers, URLs, attachments, and geolocation simultaneously'),
+      ('03','🧮','Threat Scoring','All signals are weighted and combined into a 0–100 threat score with a clear verdict'),
+      ('04','📋','Get Your Report','View interactive results on the dashboard and download a forensic PDF report')
+    ] %}
+    <div class="step-card anim-up anim-up-d{{ loop.index }}">
+      <div class="step-num">{{ num }}</div>
+      <span class="step-icon">{{ icon }}</span>
+      <div class="step-title">{{ title }}</div>
+      <p class="step-desc">{{ desc }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!--           ANALYSIS MODULES                       -->
+<!-- ══════════════════════════════════════════════════ -->
+<div class="home-section" style="padding-top:0;">
+  <div class="section-overline">Analysis Engine</div>
+  <h2 class="section-h2">6-Layer Forensic Detection</h2>
+  <p class="section-lead">Every analysis module runs independently so no threat can slip through a single-point failure.</p>
+
+  <div class="features-grid-dark">
+    {% set modules = [
+      ('🧠','Content Analysis','ML-based phishing detection','TF-IDF + Logistic Regression model trained on thousands of phishing and legitimate emails.','indigo','NLP MODEL'),
+      ('📋','Header Analysis','SPF · DKIM · DMARC checks','Verifies sender authentication, detects reply-to mismatches, lookalike domains, and brand impersonation.','cyan','AUTH'),
+      ('🔗','URL Inspection','Link reputation analysis','Checks for IP-based links, URL shorteners, punycode, suspicious TLDs, and anchor-text mismatches.','rose','LINK SCAN'),
+      ('📎','Attachment Analysis','File type & malware indicators','Identifies high-risk extensions, macro-enabled Office files, double extensions, and calculates file hashes.','amber','HASH CHECK'),
+      ('🌐','GeoIP Route Tracing','IP hop tracing & geolocation','Parses the Received header chain, resolves every public IP, and plots the email route on a map.','emerald','GEO INTEL'),
+      ('🔐','Email Authentication','Sender identity verification','Cross-references From, Reply-To, Return-Path, and Message-ID to detect identity spoofing patterns.','violet','SPOOF DETECT')
+    ] %}
+    {% for icon, title, subtitle, desc, color, tag in modules %}
+    <div class="feat-card anim-up">
+      <div class="feat-icon-box {{ color }}">{{ icon }}</div>
+      <div class="feat-title">{{ title }}</div>
+      <div style="font-size:11px; color:#6366f1; font-weight:700; letter-spacing:0.06em; margin-bottom:8px;">{{ subtitle }}</div>
+      <p class="feat-desc">{{ desc }}</p>
+      <span class="feat-tag">{{ tag }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!--           ANALYTICS CHARTS                       -->
+<!-- ══════════════════════════════════════════════════ -->
+<div class="home-section" style="padding-top:0;">
+  <div class="section-overline">Your Intelligence Dashboard</div>
+  <h2 class="section-h2">Personal Threat Analytics</h2>
+  <p class="section-lead">Real-time metrics from your scan history — all scoped to your account only.</p>
+
+  <div class="analytics-grid">
+    <div class="analytics-card">
+      <div class="ac-header">
+        <div class="ac-title">🎯 Verdict Distribution</div>
+        <div class="ac-badge">{{ analytics.total_scans }} scans</div>
+      </div>
+      <div class="ac-chart"><canvas id="verdictPieChart"></canvas></div>
+    </div>
+    <div class="analytics-card">
+      <div class="ac-header">
+        <div class="ac-title">📈 Scan Activity Trend</div>
+        <div class="ac-badge" style="color:#22c55e; background:rgba(34,197,94,0.12);">Avg: {{ analytics.avg_score }}/100</div>
+      </div>
+      <div class="ac-chart"><canvas id="scansLineChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!--                 CTA BANNER                       -->
+<!-- ══════════════════════════════════════════════════ -->
+<div class="cta-banner">
+  <div class="section-overline" style="justify-content:center;">Real-Time Protection</div>
+  <h2>Enable Live Inbox Monitoring</h2>
+  <p>Connect your Gmail or any IMAP mailbox and the system automatically scans every incoming email — no manual uploads needed.</p>
+  <a href="{{ url_for('monitor') }}" class="cta-primary" style="text-decoration:none;">
+    <span>📡</span> Go to Live Monitor
+  </a>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+  /* ── Particle Canvas ── */
+  const canvas = document.getElementById("hero-canvas");
+  if (canvas) {
+    const ctx = canvas.getContext("2d");
+    let W, H, particles = [];
+    function initCanvas() {
+      W = canvas.width  = canvas.offsetWidth;
+      H = canvas.height = canvas.offsetHeight;
+    }
+    function randomParticle() {
+      return {
+        x: Math.random() * W, y: Math.random() * H,
+        r: Math.random() * 1.5 + 0.3,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        alpha: Math.random() * 0.5 + 0.1
+      };
+    }
+    function initParticles() { particles = Array.from({length: 80}, randomParticle); }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      // draw connections
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 120) {
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(99,102,241,${0.12 * (1 - dist/120)})`;
+            ctx.lineWidth = 0.5;
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+      particles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(99,102,241,${p.alpha})`;
+        ctx.fill();
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0 || p.x > W) p.vx *= -1;
+        if (p.y < 0 || p.y > H) p.vy *= -1;
+      });
+      requestAnimationFrame(draw);
+    }
+    initCanvas(); initParticles(); draw();
+    window.addEventListener("resize", () => { initCanvas(); initParticles(); });
+  }
+
+  /* ── Upload Zone ── */
+  const dropZone    = document.getElementById("drop-zone");
+  const fileInput   = document.getElementById("email_file_input");
+  const dzDefault   = document.getElementById("dz-default");
+  const dzSelected  = document.getElementById("dz-selected");
+  const fsFilename  = document.getElementById("fs-filename");
+  const fsMeta      = document.getElementById("fs-meta");
+  const fsRemove    = document.getElementById("fs-remove");
+  const submitBtn   = document.getElementById("submit-btn");
+  const scanLoader  = document.getElementById("scan-loader");
+  const scanForm    = document.getElementById("scan-form");
+  const browseLink  = document.getElementById("dz-browse-link");
+
+  function showFile(file) {
+    fsFilename.textContent = file.name;
+    fsMeta.textContent = (file.size / 1024).toFixed(1) + " KB · " + (file.name.split('.').pop().toUpperCase() + " file");
+    dzDefault.style.display  = "none";
+    dzSelected.classList.add("visible");
+    submitBtn.disabled = false;
+  }
+  function clearFile() {
+    fileInput.value = "";
+    dzDefault.style.display  = "";
+    dzSelected.classList.remove("visible");
+  }
+
+  if (fileInput) fileInput.addEventListener("change", e => { if (e.target.files[0]) showFile(e.target.files[0]); });
+  if (browseLink) browseLink.addEventListener("click", e => { e.stopPropagation(); fileInput.click(); });
+  if (dropZone) {
+    dropZone.addEventListener("click", () => { if (!dzSelected.classList.contains("visible")) fileInput.click(); });
+    dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault(); dropZone.classList.remove("dragover");
+      const file = e.dataTransfer.files[0];
+      if (file && (file.name.endsWith(".eml") || file.name.endsWith(".txt"))) {
+        const dt = new DataTransfer(); dt.items.add(file);
+        fileInput.files = dt.files; showFile(file);
+      }
+    });
+  }
+  if (fsRemove) fsRemove.addEventListener("click", e => { e.stopPropagation(); clearFile(); });
+  if (scanForm) {
+    scanForm.addEventListener("submit", e => {
+      if (!fileInput.files || !fileInput.files[0]) { e.preventDefault(); return; }
+      submitBtn.style.display = "none";
+      scanLoader.classList.add("visible");
+    });
+  }
+
+  /* ── Charts ── */
+  const analytics = {{ analytics | tojson | safe }};
+  const CHART_COLORS = { grid: "rgba(255,255,255,0.05)", tick: "#334155" };
+
+  // Doughnut
+  new Chart(document.getElementById("verdictPieChart"), {
+    type: "doughnut",
+    data: {
+      labels: ["Safe", "Suspicious", "Dangerous"],
+      datasets: [{
+        data: [analytics.verdict_counts.Safe||0, analytics.verdict_counts.Suspicious||0, analytics.verdict_counts.Dangerous||0],
+        backgroundColor: ["#22c55e","#eab308","#ef4444"],
+        borderColor: "rgba(0,0,0,0)", borderWidth: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: "72%",
+      plugins: {
+        legend: { position:"bottom", labels:{ color:"#475569", font:{family:"Inter",size:12}, padding:16 } }
+      }
+    }
+  });
+
+  // Bar
+  new Chart(document.getElementById("scansLineChart"), {
+    type: "bar",
+    data: {
+      labels: analytics.timeseries.dates.length ? analytics.timeseries.dates : ["No Data"],
+      datasets: [
+        { label:"Safe",       data: analytics.timeseries.safe,       backgroundColor:"rgba(34,197,94,0.7)",  borderRadius:4 },
+        { label:"Suspicious", data: analytics.timeseries.suspicious, backgroundColor:"rgba(234,179,8,0.7)", borderRadius:4 },
+        { label:"Dangerous",  data: analytics.timeseries.dangerous,  backgroundColor:"rgba(239,68,68,0.7)", borderRadius:4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { stacked:true, ticks:{color:CHART_COLORS.tick,font:{size:11}}, grid:{display:false} },
+        y: { stacked:true, ticks:{color:CHART_COLORS.tick,font:{size:11}}, grid:{color:CHART_COLORS.grid}, beginAtZero:true }
+      },
+      plugins: {
+        legend: { position:"bottom", labels:{ color:"#475569", font:{family:"Inter",size:12}, padding:16 } }
+      }
+    }
+  });
+
+  /* ── Scroll-based animation trigger ── */
+  const animEls = document.querySelectorAll(".anim-up");
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.style.opacity="1"; io.unobserve(e.target); } });
+  }, { threshold: 0.1 });
+  animEls.forEach(el => io.observe(el));
+});
+</script>
+{% endblock %}

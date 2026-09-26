@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Sign In | Email Threat Detector{% endblock %}
+
+{% block extra_head %}
+<style>
+  body { background: #070d19 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="min-height:75vh; display:flex; align-items:center; justify-content:center; padding:20px 0;">
+  <div style="width:100%; max-width:440px;">
+
+    <!-- Logo / Brand -->
+    <div style="text-align:center; margin-bottom:36px;">
+      <div style="width:64px; height:64px; background:linear-gradient(135deg,#6366f1,#8b5cf6); border-radius:18px; display:flex; align-items:center; justify-content:center; font-size:28px; margin:0 auto 16px; box-shadow:0 8px 24px rgba(99,102,241,0.35);">🛡️</div>
+      <h1 style="font-size:28px; font-weight:800; color:#ffffff; margin:0 0 8px; letter-spacing:-0.02em;">Welcome back</h1>
+      <p style="color:#94a3b8; font-size:14px; margin:0; font-weight:500;">Sign in to your threat intelligence dashboard</p>
+    </div>
+
+    <!-- Card -->
+    <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.18); border-radius:20px; padding:36px; box-shadow:0 24px 64px rgba(0,0,0,0.4);">
+
+      <!-- Flash messages (inline) -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            {% if category == 'danger' %}
+            <div style="display:flex; align-items:center; gap:10px; padding:12px 16px; border-radius:10px; margin-bottom:20px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.25); color:#fca5a5;">
+              <span>⚠️</span>
+              <span style="font-size:13px;">{{ message }}</span>
+            </div>
+            {% elif category == 'success' %}
+            <div style="display:flex; align-items:center; gap:10px; padding:12px 16px; border-radius:10px; margin-bottom:20px; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.22); color:#86efac;">
+              <span>✅</span>
+              <span style="font-size:13px;">{{ message }}</span>
+            </div>
+            {% else %}
+            <div style="display:flex; align-items:center; gap:10px; padding:12px 16px; border-radius:10px; margin-bottom:20px; background:rgba(234,179,8,0.1); border:1px solid rgba(234,179,8,0.22); color:#fde047;">
+              <span>⚡</span>
+              <span style="font-size:13px;">{{ message }}</span>
+            </div>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form action="{{ url_for('login') }}" method="post" id="login-form" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- Username -->
+        <div style="margin-bottom:20px;">
+          <label for="login-username" style="display:block; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:8px;">Username</label>
+          <input type="text" id="login-username" name="username" required autocomplete="username"
+                 placeholder="Enter your username"
+                 style="width:100%; padding:12px 16px; background:#07111f; border:1px solid rgba(99,102,241,0.2); border-radius:10px; color:#e2e8f0; font-size:14px; font-family:'Inter',sans-serif; outline:none; transition:border-color 0.2s; box-sizing:border-box;">
+        </div>
+
+        <!-- Password -->
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label for="login-password" style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0;">Password</label>
+            <a href="{{ url_for('forgot_password') }}" style="font-size:12px; color:#818cf8; text-decoration:none; font-weight:600;">Forgot password?</a>
+          </div>
+          <div style="position:relative;">
+            <input type="password" id="login-password" name="password" required autocomplete="current-password"
+                   placeholder="Enter your password"
+                   style="width:100%; padding:12px 48px 12px 16px; background:#07111f; border:1px solid rgba(99,102,241,0.2); border-radius:10px; color:#e2e8f0; font-size:14px; font-family:'Inter',sans-serif; outline:none; transition:border-color 0.2s; box-sizing:border-box;">
+            <button type="button" id="toggle-pass" onclick="togglePass()"
+                    style="position:absolute; right:14px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:16px; color:#64748b;" aria-label="Show/hide password">👁️</button>
+          </div>
+        </div>
+
+        <!-- Remember me -->
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:24px;">
+          <input type="checkbox" id="remember" name="remember" style="accent-color:#6366f1; width:15px; height:15px;">
+          <label for="remember" style="font-size:13px; color:#64748b; cursor:pointer;">Remember me</label>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" id="login-submit-btn"
+                style="width:100%; padding:13px; background:linear-gradient(135deg,#6366f1,#8b5cf6); border:none; border-radius:10px; color:#fff; font-size:15px; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif; transition:opacity 0.2s, transform 0.15s; letter-spacing:0.02em;">
+          🔐 Sign In
+        </button>
+      </form>
+    </div>
+
+    <!-- Register link -->
+    <p style="text-align:center; margin-top:24px; color:#64748b; font-size:14px;">
+      Don't have an account?
+      <a href="{{ url_for('register') }}" id="goto-register"
+         style="color:#818cf8; font-weight:600; text-decoration:none; transition:color 0.2s;">Create one free →</a>
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function togglePass() {
+    const inp = document.getElementById('login-password');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  }
+
+  // Focus ring on inputs
+  document.querySelectorAll('input[type="text"], input[type="password"]').forEach(el => {
+    el.addEventListener('focus', () => el.style.borderColor = 'rgba(99,102,241,0.6)');
+    el.addEventListener('blur',  () => el.style.borderColor = 'rgba(99,102,241,0.2)');
+  });
+
+  // Button hover
+  const btn = document.getElementById('login-submit-btn');
+  if (btn) {
+    btn.addEventListener('mouseenter', () => { btn.style.opacity = '0.90'; btn.style.transform = 'translateY(-1px)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.opacity = '1';    btn.style.transform = 'translateY(0)'; });
+  }
+</script>
+{% endblock %}

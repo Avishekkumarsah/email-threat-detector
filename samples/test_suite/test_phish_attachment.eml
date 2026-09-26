@@ -1,0 +1,31 @@
+Delivered-To: shyam@college.edu
+Received: from unknown (HELO relay.darkhost.tk) (203.0.113.201)
+  by mx.college.edu with SMTP; Mon, 22 Sep 2025 13:05:00 +0000
+Authentication-Results: mx.college.edu; spf=fail smtp.mailfrom=it-support@college-helpdesk.gmail.com; dkim=fail
+From: "College IT Helpdesk" <it-support@gmail.com>
+Reply-To: it-support@gmail.com
+Return-Path: <it-support@gmail.com>
+To: shyam@college.edu
+Subject: URGENT: Mailbox storage full, update settings attached
+Date: Mon, 22 Sep 2025 13:04:00 +0000
+Content-Type: multipart/mixed; boundary="BOUND456"
+
+--BOUND456
+Content-Type: text/plain; charset="UTF-8"
+
+Dear Student,
+
+Your mailbox storage is full and will stop receiving emails. Please run the
+attached settings tool immediately to fix this issue. Failure to act now
+will result in your account being suspended.
+
+IT Helpdesk
+
+--BOUND456
+Content-Type: application/octet-stream; name="mailbox_fix.exe"
+Content-Disposition: attachment; filename="mailbox_fix.exe"
+Content-Transfer-Encoding: base64
+
+VGhpcyBpcyBub3QgYSByZWFsIGV4ZWN1dGFibGUsIGp1c3QgdGVzdCBjb250ZW50Lg==
+
+--BOUND456--

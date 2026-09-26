@@ -1,0 +1,36 @@
+Delivered-To: victim@example.com
+Received: from unknown (HELO relay.badhost.net) (185.220.101.45)
+  by mx.example.com with SMTP; Mon, 22 Sep 2025 10:15:22 +0000
+Received: from mail.freehostingxyz.net ([203.0.113.77])
+  by relay.badhost.net with ESMTP; Mon, 22 Sep 2025 10:14:50 +0000
+Received: from localhost ([127.0.0.1])
+  by mail.freehostingxyz.net with ESMTP; Mon, 22 Sep 2025 10:14:10 +0000
+Authentication-Results: mx.example.com; spf=fail smtp.mailfrom=paypa1-security.xyz; dkim=fail; dmarc=fail
+From: "PayPal Security" <alerts@gmail.com>
+Reply-To: recovery-team@paypa1-security.xyz
+Return-Path: <bounce@totally-different-domain.top>
+To: victim@example.com
+Subject: URGENT!! Your Account Will Be Suspended - Verify Now!!
+Date: Mon, 22 Sep 2025 10:14:00 +0000
+Content-Type: multipart/mixed; boundary="BOUNDARY123"
+
+--BOUNDARY123
+Content-Type: text/html; charset="UTF-8"
+
+<html><body>
+<p>Dear Customer,</p>
+<p>We noticed unusual activity on your account. Your account will be suspended
+in 24 hours unless you verify your identity immediately.</p>
+<p><a href="http://192.168.55.20/verify-account/login.php">www.paypal.com/verify</a></p>
+<p>This is urgent, please act now to avoid permanent suspension.</p>
+</body></html>
+
+--BOUNDARY123
+Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document.macroEnabled.12; name="invoice.docm"
+Content-Disposition: attachment; filename="invoice.pdf.docm"
+Content-Transfer-Encoding: base64
+
+VGhpcyBpcyBub3QgYSByZWFsIG1hY3JvIGZpbGUsIGp1c3QgdGVzdCBjb250ZW50IGZvciB0aGUg
+cHJvamVjdCBkZW1vLg==
+
+--BOUNDARY123--

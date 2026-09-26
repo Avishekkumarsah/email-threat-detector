@@ -1,0 +1,47 @@
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# ── Virtual environments ─────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Secrets / credentials (NEVER commit these) ───────────────────────────────
+.env
+*.env
+
+# ── App data ─────────────────────────────────────────────────────────────────
+scans.db
+uploads/
+reports/
+*.log
+
+# ── IDE / OS artefacts ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+temp_test.txt
+imap_debug.txt
+monitor_debug.txt
+check_output.txt
+test_output.txt
+test_result.log
+
+# Temporary development/test files
+app_import_log.txt
+flask_pid.txt
+startup_log.txt
+test_pdf_out.txt
+test_pdf_result.txt
+ts_stderr.txt
+ts_stdout.txt

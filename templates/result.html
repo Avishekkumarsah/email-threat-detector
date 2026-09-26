@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block title %}Scan Result | Email Threat Detector{% endblock %}
+
+{% block content %}
+
+{% set verdict = r.score.verdict %}
+{% set verdict_lower = verdict | lower %}
+{% set verdict_color = {"Safe": "#16a34a", "Suspicious": "#d97706", "Dangerous": "#dc2626"}[verdict] %}
+{% set verdict_class = {"Safe": "safe", "Suspicious": "suspicious", "Dangerous": "dangerous"}[verdict] %}
+
+<!-- ── Page Header ── -->
+<div class="result-page-header">
+  <div>
+    <p class="result-page-title">📁 Scan Result</p>
+    <h1 class="result-filename">{{ scan.filename }}</h1>
+    <div style="display:flex; gap:12px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+      <span class="verdict-badge {{ verdict_class }}">
+        {% if verdict == 'Safe' %}✅{% elif verdict == 'Suspicious' %}⚠️{% else %}🚨{% endif %}
+        {{ verdict }}
+      </span>
+      {% if scan.sender %}
+      <span style="font-size:13px; color:var(--text-muted);">From: <strong style="color:var(--text-secondary);">{{ scan.sender }}</strong></span>
+      {% endif %}
+      {% if scan.scan_date %}
+      <span style="font-size:13px; color:var(--text-muted);">{{ scan.scan_date }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <a href="{{ url_for('download_report', scan_id=scan.id) }}"
+     class="btn btn-download" id="download-report-btn" aria-label="Download forensic PDF report">
+    ⬇ Download Forensic Report
+  </a>
+</div>
+
+<!-- ── Row 1: Score + Verdict Summary ── -->
+<div class="grid-2 mb-6">
+
+  <!-- Threat Score Card -->
+  <div class="card">
+    <div class="card-header-inner">
+      <span>🎯</span>
+      <div>
+        <p class="card-title">Threat Score</p>
+        <p class="card-subtitle">Overall risk assessment</p>
+      </div>
+    </div>
+    <div class="score-ring-wrap">
+      <div class="score-ring-container">
+        <canvas id="gauge" class="score-ring-canvas" aria-label="Threat score gauge showing {{ r.score.final_score }} out of 100"></canvas>
+        <div class="score-ring-label">
+          {% if verdict == 'Safe' %}
+          <span class="score-number" style="color:#16a34a;">{{ r.score.final_score }}</span>
+          {% elif verdict == 'Suspicious' %}
+          <span class="score-number" style="color:#d97706;">{{ r.score.final_score }}</span>
+          {% else %}
+          <span class="score-number" style="color:#dc2626;">{{ r.score.final_score }}</span>
+          {% endif %}
+          <span class="score-denom">/100</span>
+        </div>
+      </div>
+      <div class="score-verdict-large {{ verdict_class }}">{{ verdict }}</div>
+      <p class="score-hint">
+        {% if verdict == 'Safe' %}No significant threat indicators were detected in this email.
+        {% elif verdict == 'Suspicious' %}Multiple indicators contributed to this assessment. Review evidence below.
+        {% else %}High-risk indicators detected. This email shows strong signs of malicious intent.
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- Score Breakdown Card -->
+  <div class="card">
+    <div class="card-header-inner">
+      <span>📊</span>
+      <div>
+        <p class="card-title">Score Breakdown</p>
+        <p class="card-subtitle">Contribution by analysis module</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="breakdown-bars" aria-label="Score breakdown chart">
+        {% for b in r.score.breakdown %}
+        <div class="breakdown-bar-row" data-tooltip="{{ b.category }}: {{ b.contribution }} pts">
+          <span class="breakdown-label">{{ b.category }}</span>
+          <div class="breakdown-track">
+            <div class="breakdown-fill" data-val="{{ b.contribution }}" style="width:0;"></div>
+          </div>
+          <span class="breakdown-value">{{ b.contribution }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 2: Why this verdict ── -->
+<div class="card mb-6" id="evidence-section">
+  <div class="card-header-inner">
+    <span>🔬</span>
+    <div>
+      <p class="card-title">Why this verdict?</p>
+      <p class="card-subtitle">Indicators detected during analysis</p>
+    </div>
+  </div>
+  <div class="card-body">
+    {% if r.score.reasons %}
+      <div class="evidence-grid">
+        {% for reason in r.score.reasons %}
+          {% set reason_lower = reason | lower %}
+          {% if 'dangerous' in reason_lower or 'malicious' in reason_lower or 'exe' in reason_lower or 'high-risk' in reason_lower or 'high risk' in reason_lower %}
+            {% set sev = 'high' %}
+            {% set icon = '🚨' %}
+            {% set sev_label = 'High Risk' %}
+          {% elif 'spf' in reason_lower or 'dkim' in reason_lower or 'fail' in reason_lower or 'suspicious' in reason_lower or 'urgency' in reason_lower or 'social' in reason_lower or 'attachment' in reason_lower or 'missing' in reason_lower %}
+            {% set sev = 'medium' %}
+            {% set icon = '⚠️' %}
+            {% set sev_label = 'Warning' %}
+          {% else %}
+            {% set sev = 'low' %}
+            {% set icon = 'ℹ️' %}
+            {% set sev_label = 'Information' %}
+          {% endif %}
+          <div class="evidence-card {{ sev }}" role="listitem">
+            <div class="evidence-icon-wrap" aria-hidden="true">{{ icon }}</div>
+            <div class="evidence-body">
+              <p class="evidence-type" aria-label="Severity: {{ sev_label }}">{{ sev_label }}</p>
+              <p class="evidence-title">{{ reason | truncate(80) }}</p>
+              {% if reason | length > 80 %}
+              <p class="evidence-detail">{{ reason }}</p>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="padding:32px 24px;">
+        <span class="empty-icon">✅</span>
+        <p class="empty-title">No significant indicators found</p>
+        <p class="empty-desc">This email passed all checks without triggering any threat flags.</p>
+      </div>
+    {% endif %}
+
+    {% if r.score.skipped_checks %}
+    <p style="margin-top:16px; font-size:12px; color:var(--text-muted);">
+      Skipped checks: {{ r.score.skipped_checks | join(", ") }}
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Row 3: Detail Accordions ── -->
+<div class="card mb-6">
+  <div class="card-header-inner">
+    <span>🔍</span>
+    <div>
+      <p class="card-title">Detailed Analysis</p>
+      <p class="card-subtitle">Expand each module to view full findings</p>
+    </div>
+  </div>
+  <div class="card-body" style="padding-top:12px;">
+
+    <!-- Content Analysis -->
+    <div class="accordion-item-custom">
+      <button class="accordion-btn-custom" id="acc-content-btn" aria-expanded="false" aria-controls="acc-content-body" onclick="toggleAcc('acc-content')">
+        <span class="accordion-btn-icon" aria-hidden="true">🧠</span>
+        <span class="accordion-btn-label">Content Analysis</span>
+        <span class="accordion-btn-meta">Phishing probability: {{ r.content.phishing_probability }}%</span>
+        <span class="accordion-arrow" aria-hidden="true">▼</span>
+      </button>
+      <div id="acc-content-body" class="accordion-body-custom" style="display:none;">
+        <p><strong>Top indicators:</strong> {{ r.content.top_indicators | join(", ") or "None" }}</p>
+        <p><strong>Suspicious phrases:</strong> {{ r.content.keyword_flags | join(", ") or "None" }}</p>
+      </div>
+    </div>
+
+    <!-- Header Analysis -->
+    <div class="accordion-item-custom">
+      <button class="accordion-btn-custom" id="acc-header-btn" aria-expanded="false" aria-controls="acc-header-body" onclick="toggleAcc('acc-header')">
+        <span class="accordion-btn-icon" aria-hidden="true">📋</span>
+        <span class="accordion-btn-label">Header Analysis</span>
+        <span class="accordion-btn-meta">Score: {{ r.header.score }}</span>
+        <span class="accordion-arrow" aria-hidden="true">▼</span>
+      </button>
+      <div id="acc-header-body" class="accordion-body-custom" style="display:none;">
+        {% for f in r.header.flags %}
+          <p style="margin-bottom:8px;">
+            <span class="detail-tag">{{ f.severity }}</span>
+            {{ f.detail }}
+          </p>
+        {% else %}
+          <p class="text-muted">No header issues found.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- URL Analysis -->
+    <div class="accordion-item-custom">
+      <button class="accordion-btn-custom" id="acc-url-btn" aria-expanded="false" aria-controls="acc-url-body" onclick="toggleAcc('acc-url')">
+        <span class="accordion-btn-icon" aria-hidden="true">🔗</span>
+        <span class="accordion-btn-label">URL Analysis</span>
+        <span class="accordion-btn-meta">Score: {{ r.url.score }}</span>
+        <span class="accordion-arrow" aria-hidden="true">▼</span>
+      </button>
+      <div id="acc-url-body" class="accordion-body-custom" style="display:none;">
+        {% for u in r.url.url_results %}
+          <div style="margin-bottom:12px; padding:12px; background:var(--surface-alt); border-radius:8px;">
+            <p style="font-size:13px; font-weight:600; margin:0 0 6px; word-break:break-all; font-family:'JetBrains Mono',monospace;">{{ u.url }}</p>
+            <div>
+              {% for f in u.flags %}
+                <span class="detail-tag">{{ f.check }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        {% else %}
+          <p class="text-muted">No URLs found in this email.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Attachment Analysis -->
+    <div class="accordion-item-custom">
+      <button class="accordion-btn-custom" id="acc-att-btn" aria-expanded="false" aria-controls="acc-att-body" onclick="toggleAcc('acc-att')">
+        <span class="accordion-btn-icon" aria-hidden="true">📎</span>
+        <span class="accordion-btn-label">Attachment Analysis</span>
+        <span class="accordion-btn-meta">Score: {{ r.attachment.score }}</span>
+        <span class="accordion-arrow" aria-hidden="true">▼</span>
+      </button>
+      <div id="acc-att-body" class="accordion-body-custom" style="display:none;">
+        {% for a in r.attachment.attachment_results %}
+          <div style="margin-bottom:12px; padding:12px; background:var(--surface-alt); border-radius:8px;">
+            <p style="font-size:13px; font-weight:700; margin:0 0 3px;">📎 {{ a.filename }}</p>
+            <p style="font-size:12px; color:var(--text-muted); margin:0 0 6px;">{{ a.content_type }} • {{ a.size_bytes }} bytes</p>
+            <div>
+              {% for f in a.flags %}
+                <span class="detail-tag">{{ f.check }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        {% else %}
+          <p class="text-muted">No attachments in this email.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Row 4: Email Route Map ── -->
+<div class="card">
+  <div class="card-header-inner">
+    <span>🌐</span>
+    <div>
+      <p class="card-title">Email Route</p>
+      <p class="card-subtitle">Traced IP hops and geolocation</p>
+    </div>
+  </div>
+  <div class="card-body">
+    {% if r.geo.hops %}
+
+      <!-- Hop Details Table -->
+      <div style="overflow-x:auto; margin-bottom:16px;">
+        <table class="history-table" style="font-size:12px;" aria-label="Email Hop Route Table">
+          <thead>
+            <tr>
+              <th scope="col">Hop</th>
+              <th scope="col">IP Address</th>
+              <th scope="col">📍 Location Details</th>
+              <th scope="col">🏢 ISP / Provider</th>
+              <th scope="col">Node Type</th>
+              <th scope="col">Security Flags</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in r.geo.hops %}
+            <tr>
+              <td><strong style="color:#818cf8;">#{{ h.hop_number }}</strong></td>
+              <td><span style="font-family:'JetBrains Mono',monospace; color:#e2e8f0;">{{ h.ip }}</span></td>
+              <td>
+                <span style="font-weight:600; color:#fff;">
+                  {% if h.city %}{{ h.city }}, {% endif %}{% if h.region %}{{ h.region }}, {% endif %}{{ h.country or 'Unknown' }}
+                </span>
+              </td>
+              <td><span style="color:#94a3b8;">{{ h.isp or h.org or 'Unknown' }}</span></td>
+              <td>
+                {% if h.label == 'Origin' %}
+                <span style="padding:2px 8px; border-radius:4px; background:rgba(239,68,68,0.2); color:#fca5a5; font-weight:700; font-size:11px;">Origin Sender</span>
+                {% elif h.label == 'Final server' %}
+                <span style="padding:2px 8px; border-radius:4px; background:rgba(34,197,94,0.2); color:#86efac; font-weight:700; font-size:11px;">Destination</span>
+                {% else %}
+                <span style="padding:2px 8px; border-radius:4px; background:rgba(99,102,241,0.2); color:#818cf8; font-weight:600; font-size:11px;">Relay Node</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if h.is_proxy or h.is_hosting %}
+                <span style="padding:2px 8px; border-radius:4px; background:rgba(234,179,8,0.2); color:#fde047; font-weight:600; font-size:11px;">
+                  ⚠️ {{ 'Proxy' if h.is_proxy else '' }} {{ 'Hosting' if h.is_hosting else '' }}
+                </span>
+                {% else %}
+                <span style="color:#64748b;">Clean</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div id="map" class="map-container" aria-label="Email route map"></div>
+      {% if r.geo.note %}
+      <p style="margin-top:12px; font-size:12.5px; color:var(--text-muted);">{{ r.geo.note }}</p>
+      {% endif %}
+    {% else %}
+      <div class="empty-state" style="padding:32px 24px;">
+        <span class="empty-icon">🗺️</span>
+        <p class="empty-title">Route unavailable</p>
+        <p class="empty-desc">No public sender IP could be traced from this email's headers.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<script type="application/json" id="scan-result-data">
+{
+  "finalScore": {{ r.score.final_score | tojson }},
+  "breakdown": {{ r.score.breakdown | tojson }},
+  "hops": {{ r.geo.hops | tojson }}
+}
+</script>
+<script>
+  const scanData = JSON.parse(document.getElementById('scan-result-data').textContent);
+  const finalScore = scanData.finalScore;
+  const breakdown  = scanData.breakdown;
+  const hops       = scanData.hops;
+</script>
+
+<script>
+  // ── Accordion toggle ──────────────────────────────────────
+  function toggleAcc(id) {
+    const body = document.getElementById(id + '-body');
+    const btn  = document.getElementById(id + '-btn');
+    const open = body.style.display === 'block';
+    body.style.display = open ? 'none' : 'block';
+    btn.setAttribute('aria-expanded', !open);
+  }
+
+  // ── Breakdown animated bars ───────────────────────────────
+  setTimeout(() => {
+    const maxVal = Math.max(...breakdown.map(b => b.contribution), 1);
+    document.querySelectorAll('.breakdown-fill').forEach(el => {
+      const val = parseFloat(el.dataset.val) || 0;
+      const pct = (val / Math.max(maxVal, 100)) * 100;
+      // Color by value
+      let color = '#2563eb';
+      if (val >= 30) color = '#dc2626';
+      else if (val >= 15) color = '#d97706';
+      else if (val > 0) color = '#2563eb';
+      else color = '#e2e8f0';
+      el.style.background = color;
+      el.style.width = Math.max(pct, val > 0 ? 2 : 0) + '%';
+    });
+  }, 200);
+</script>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}

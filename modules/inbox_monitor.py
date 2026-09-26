@@ -1,0 +1,249 @@
+"""
+inbox_monitor.py
+-----------------
+Multi-tenant real-time inbox monitoring over IMAP.
+
+Instead of polling a single hardwired account from .env, this version
+fetches ALL active IMAP credentials from the database each cycle, then
+processes each account's unseen emails.
+
+The callback signature is:  on_new_email(raw_bytes, user_id)
+
+Error handling is per-account - one bad password can't kill the entire loop,
+and errors are stored per user so one user never sees another user's errors.
+"""
+
+import imaplib
+import threading
+import traceback
+from datetime import datetime
+
+import config
+
+# -- Shared state --------------------------------------------------------------
+_state = {
+    "running": False,
+    "last_check": None,
+    "emails_scanned": 0,
+    "active_accounts": 0,
+    "recent": [],          # newest first, max 20 entries (each tagged with user_id)
+    "errors": {},          # {user_id: "error message"}
+}
+_stop_event = threading.Event()
+_thread = None
+_lock = threading.Lock()
+
+
+def get_status(user_id=None) -> dict:
+    """
+    Thread-safe snapshot of monitoring state.
+    If user_id is given, only that user's feed and error are returned.
+    """
+    with _lock:
+        snap = dict(_state)
+        errors = _state["errors"]
+        snap["recent"] = [
+            e for e in _state["recent"]
+            if user_id is None or e.get("user_id") == user_id
+        ]
+        if user_id is not None:
+            snap["last_error"] = errors.get(user_id)
+        else:
+            snap["last_error"] = next(iter(errors.values()), None)
+        snap.pop("errors", None)
+        return snap
+
+
+# -- Login test (used by Settings before saving) -------------------------------
+def test_login(host: str, port, email: str, password: str):
+    """Try a real IMAP login. Returns (ok: bool, error_message: str | None)."""
+    try:
+        conn = imaplib.IMAP4_SSL(host, int(port), timeout=15)
+        try:
+            conn.login(email, password)
+        finally:
+            try:
+                conn.logout()
+            except Exception:
+                pass
+        return True, None
+    except imaplib.IMAP4.error:
+        return False, (
+            "The mail server rejected these credentials. "
+            "Use a 16-character App Password, not your normal password."
+        )
+    except Exception as e:
+        return False, f"Could not reach the mail server: {e}"
+
+
+# -- Per-account IMAP helpers --------------------------------------------------
+def _connect_imap(host: str, port: int, email: str, password: str):
+    conn = imaplib.IMAP4_SSL(host, port, timeout=30)
+    conn.login(email, password)
+    conn.select("INBOX")
+    return conn
+
+
+def _fetch_unseen_raw_emails(conn):
+    status, data = conn.search(None, "UNSEEN")
+    if status != "OK" or not data or not data[0]:
+        return []
+    raw_emails = []
+    for msg_id in data[0].split():
+        st, msg_data = conn.fetch(msg_id, "(RFC822)")
+        if st == "OK" and msg_data and msg_data[0]:
+            raw_emails.append(msg_data[0][1])
+    return raw_emails
+
+
+def _set_error(user_id, message):
+    with _lock:
+        _state["errors"][user_id] = message
+
+
+def _process_account(cred: dict, on_new_email, interval_seconds: int):
+    """
+    Poll one user's inbox. All errors are caught and reported per-account
+    so a single bad credential never kills the entire monitoring loop.
+    """
+    from modules import database  # local import avoids circular deps at module load
+
+    user_id = cred["user_id"]
+    host = cred["imap_host"]
+    port = int(cred["imap_port"])
+    email = cred["imap_email"]
+
+    # Clear any old error for this user; a new one is set below if it fails again
+    with _lock:
+        _state["errors"].pop(user_id, None)
+
+    try:
+        password = database.decrypt_password(cred["encrypted_pass"])
+    except Exception as e:
+        _set_error(user_id, f"Cannot decrypt IMAP password - {e}. "
+                            f"Re-save your IMAP settings.")
+        return
+
+    try:
+        conn = _connect_imap(host, port, email, password)
+        raw_emails = _fetch_unseen_raw_emails(conn)
+        try:
+            conn.logout()
+        except Exception:
+            pass
+
+        for raw_bytes in raw_emails:
+            try:
+                on_new_email(raw_bytes, user_id)
+                with _lock:
+                    _state["emails_scanned"] += 1
+            except Exception as e:
+                _set_error(user_id, f"Failed to process email - {e}")
+
+    except imaplib.IMAP4.error as e:
+        _set_error(user_id, f"IMAP auth/connection failed - {e}. "
+                            f"Check your App Password in Settings.")
+    except Exception as e:
+        _set_error(user_id, f"Unexpected error - {e}")
+        traceback.print_exc()
+
+
+# -- Main poll loop ------------------------------------------------------------
+def _poll_loop(on_new_email, interval_seconds: int):
+    """Runs in a background daemon thread until stop_monitoring() is called."""
+    from modules import database
+
+    while not _stop_event.is_set():
+        try:
+            active_creds = database.get_all_active_imap_credentials()
+            with _lock:
+                _state["active_accounts"] = len(active_creds)
+                _state["last_check"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            for cred in active_creds:
+                if _stop_event.is_set():
+                    break
+                _process_account(cred, on_new_email, interval_seconds)
+
+        except Exception as e:
+            _set_error("poll", f"Poll loop error: {e}")
+            traceback.print_exc()
+
+        _stop_event.wait(interval_seconds)
+
+
+# -- Multi-worker Process Lock Guard -----------------------------------------
+_monitor_socket = None
+
+def _acquire_worker_lock() -> bool:
+    """
+    In multi-worker environments (e.g. Gunicorn -w 4), ensures only ONE
+    worker process acquires the lock to run the background IMAP monitor thread.
+    """
+    global _monitor_socket
+    if _monitor_socket is not None:
+        return True
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", 47829))
+        _monitor_socket = s
+        return True
+    except OSError:
+        # Port 47829 is already bound by another worker process on this server
+        return False
+
+
+# -- Public API ----------------------------------------------------------------
+def start_monitoring(on_new_email, interval_seconds: int = None) -> bool:
+    """
+    Start the background monitoring thread.
+    on_new_email(raw_bytes: bytes, user_id: int) is called for each new email.
+    Returns False if already running or if another worker process holds the monitor lock.
+    """
+    global _thread
+    with _lock:
+        if _state["running"]:
+            return False
+
+    if not _acquire_worker_lock():
+        # Another worker process is already handling inbox monitoring
+        return False
+
+    interval = interval_seconds or config.POLL_INTERVAL_SECONDS
+    _stop_event.clear()
+    _thread = threading.Thread(
+        target=_poll_loop,
+        args=(on_new_email, interval),
+        daemon=True,
+    )
+    _thread.start()
+    with _lock:
+        _state["running"] = True
+    return True
+
+
+
+def stop_monitoring() -> bool:
+    """Stop the background thread gracefully."""
+    with _lock:
+        if not _state["running"]:
+            return False
+    _stop_event.set()
+    with _lock:
+        _state["running"] = False
+    return True
+
+
+def record_scan(subject: str, sender: str, verdict: str, scan_id: int, user_id: int = None):
+    """Called by app.py after each auto-scan to update the live dashboard feed."""
+    with _lock:
+        _state["recent"].insert(0, {
+            "time":    datetime.now().strftime("%H:%M:%S"),
+            "subject": subject or "(no subject)",
+            "from":    sender or "(unknown sender)",
+            "verdict": verdict,
+            "scan_id": scan_id,
+            "user_id": user_id,
+        })
+        _state["recent"] = _state["recent"][:20]

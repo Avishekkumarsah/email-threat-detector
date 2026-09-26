@@ -1,0 +1,20 @@
+Delivered-To: victim@example.com
+Received: from unknown (HELO relay.suspicious-net.top) (198.51.100.23)
+  by mx.example.com with SMTP; Mon, 22 Sep 2025 11:00:00 +0000
+Received: from mail.cheaphost.xyz ([203.0.113.5])
+  by relay.suspicious-net.top with ESMTP; Mon, 22 Sep 2025 10:59:40 +0000
+Authentication-Results: mx.example.com; spf=fail smtp.mailfrom=fedeex-delivery.top; dkim=none; dmarc=fail
+From: "FedEx Delivery" <delivery-notice@fedeex-delivery.top>
+Reply-To: support@totallyunrelated.click
+Return-Path: <bounce@another-domain.zip>
+To: victim@example.com
+Subject: Your package could not be delivered - action required
+Date: Mon, 22 Sep 2025 10:59:00 +0000
+Content-Type: text/html; charset="UTF-8"
+
+<html><body>
+<p>We attempted to deliver your package but failed. Please confirm your address
+immediately to avoid your package being returned.</p>
+<p><a href="http://bit.ly/3xF4kNp">Click here to confirm delivery</a></p>
+<p>This is time sensitive, please act now.</p>
+</body></html>

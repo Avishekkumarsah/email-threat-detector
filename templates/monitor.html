@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}Live Monitor | Email Threat Detector{% endblock %}
+
+{% block content %}
+
+{% if not imap_creds %}
+<!-- ── No IMAP banner ── -->
+<div style="background:rgba(234,179,8,0.08); border:1px solid rgba(234,179,8,0.25); border-radius:14px; padding:20px 24px; margin-bottom:24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+  <span style="font-size:28px;">⚠️</span>
+  <div style="flex:1;">
+    <p style="margin:0 0 4px; font-weight:700; color:#fde047; font-size:15px;">No IMAP credentials configured</p>
+    <p style="margin:0; font-size:13px; color:#ca8a04;">Configure your inbox in Settings before enabling live monitoring.</p>
+  </div>
+  <a href="{{ url_for('settings') }}" class="btn btn-primary" id="goto-settings-btn"
+     style="flex-shrink:0; background:linear-gradient(135deg,#6366f1,#8b5cf6); border:none;">
+    ⚙️ Go to Settings
+  </a>
+</div>
+{% endif %}
+
+<!-- Page Header -->
+<div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:24px;">
+  <div>
+    <h1 class="page-title">📡 Live Monitor</h1>
+    <p class="page-subtitle">
+      Real-time inbox monitoring over IMAP — automatically scans every new email as it arrives.
+      {% if imap_creds %}
+        Watching <strong style="color:#818cf8;">{{ imap_creds.imap_email }}</strong> every <strong>{{ config_poll_interval }}s</strong>.
+      {% else %}
+        Checks run every <strong>{{ config_poll_interval }}s</strong> once configured.
+      {% endif %}
+    </p>
+  </div>
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <form action="{{ url_for('monitor_start') }}" method="post" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" id="start-monitor-btn"
+              {% if status.running or not imap_creds %}disabled aria-disabled="true"{% endif %}>
+        ▶ Start Monitoring
+      </button>
+    </form>
+    <form action="{{ url_for('monitor_stop') }}" method="post" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline" id="stop-monitor-btn"
+              style="border-color:var(--danger-border); color:var(--danger);"
+              {% if not status.running %}disabled aria-disabled="true"{% endif %}>
+        ⏹ Stop
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Status hero -->
+<div class="monitor-hero" style="background:var(--navy); border-radius:var(--radius-xl); padding:28px 32px; margin-bottom:24px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+    <div>
+      <div class="live-indicator" style="display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:#fff; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:12px;">
+        <div class="live-dot {% if status.running %}running{% endif %}" id="live-dot" aria-hidden="true"></div>
+        <span id="status-text">{{ 'MONITORING ACTIVE' if status.running else 'MONITORING STOPPED' }}</span>
+      </div>
+      <div style="display:flex; gap:32px; flex-wrap:wrap;">
+        <div>
+          <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 3px; font-weight:600;">Last Check</p>
+          <p style="font-size:15px; font-weight:700; color:#fff; margin:0; font-family:'JetBrains Mono',monospace;" id="last-check">{{ status.last_check or '—' }}</p>
+        </div>
+        <div>
+          <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 3px; font-weight:600;">Emails Scanned</p>
+          <p style="font-size:24px; font-weight:800; color:#fff; margin:0; font-family:'JetBrains Mono',monospace;" id="scanned-count">{{ status.emails_scanned }}</p>
+        </div>
+        <div>
+          <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 3px; font-weight:600;">Active Accounts</p>
+          <p style="font-size:24px; font-weight:800; color:#fff; margin:0; font-family:'JetBrains Mono',monospace;" id="active-accounts">{{ status.active_accounts }}</p>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <span class="verdict-badge {% if status.running %}safe{% else %}suspicious{% endif %}" id="status-badge">
+        {% if status.running %}● RUNNING{% else %}◉ STOPPED{% endif %}
+      </span>
+    </div>
+  </div>
+  {% if status.last_error %}
+  <div style="margin-top:16px; padding:12px 16px; background:rgba(220,38,38,0.12); border:1px solid rgba(220,38,38,0.25); border-radius:8px;">
+    <p style="margin:0; color:#fca5a5; font-size:13px;" id="last-error">⚠️ {{ status.last_error }}</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Metrics row -->
+<div class="monitor-metrics" style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:24px;">
+  <div class="metric-card" style="background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:20px; text-align:center;">
+    <span class="metric-number" id="metric-scanned" style="font-size:28px; font-weight:800; font-family:'JetBrains Mono',monospace; display:block; color:var(--accent);">{{ status.emails_scanned }}</span>
+    <span class="metric-label" style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); font-weight:600;">Emails Auto-Scanned</span>
+  </div>
+  <div class="metric-card" style="background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:20px; text-align:center;">
+    {% if status.running %}
+    <span class="metric-number" style="font-size:28px; font-weight:800; font-family:'JetBrains Mono',monospace; display:block; color:var(--safe);" id="metric-status">LIVE</span>
+    {% else %}
+    <span class="metric-number" style="font-size:28px; font-weight:800; font-family:'JetBrains Mono',monospace; display:block; color:var(--text-muted);" id="metric-status">OFF</span>
+    {% endif %}
+    <span class="metric-label" style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); font-weight:600;">Monitor Status</span>
+  </div>
+  <div class="metric-card" style="background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:20px; text-align:center;">
+    <span class="metric-number" id="metric-accounts" style="font-size:28px; font-weight:800; font-family:'JetBrains Mono',monospace; display:block; color:var(--text-secondary);">{{ status.active_accounts }}</span>
+    <span class="metric-label" style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); font-weight:600;">Active Accounts</span>
+  </div>
+</div>
+
+<!-- Recent emails -->
+<div class="card">
+  <div class="card-header-inner">
+    <span>📬</span>
+    <div>
+      <p class="card-title">Recently Auto-Scanned Emails</p>
+      <p class="card-subtitle">Updates every 5 seconds while monitoring is active</p>
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="history-table" id="recent-table" aria-label="Recently scanned emails">
+      <thead>
+        <tr>
+          <th>⏱ Time</th>
+          <th>📨 From</th>
+          <th>📝 Subject</th>
+          <th>🏷 Verdict</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="recent-body">
+        {% for e in status.recent %}
+        <tr>
+          <td><span class="font-mono" style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">{{ e.time }}</span></td>
+          <td style="font-size:13px; color:var(--text-secondary); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ e.from }}</td>
+          <td style="font-size:13px; color:var(--text-secondary); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ e.subject }}</td>
+          <td>
+            {% set vc = {'Safe':'safe','Suspicious':'suspicious','Dangerous':'dangerous'}[e.verdict] %}
+            <span class="verdict-badge {{ vc }}" style="font-size:11px; padding:4px 10px;">{{ e.verdict }}</span>
+          </td>
+          <td>
+            <a href="/result/{{ e.scan_id }}" class="btn btn-outline btn-sm">View</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="empty-monitor-row">
+          <td colspan="5">
+            <div class="empty-state" style="padding:40px 24px;">
+              <span class="empty-icon">📭</span>
+              <p class="empty-title">No emails auto-scanned yet</p>
+              <p class="empty-desc">
+                {% if imap_creds %}
+                  Start monitoring above — new emails in <strong>{{ imap_creds.imap_email }}</strong> will appear here automatically.
+                {% else %}
+                  Configure your IMAP inbox in <a href="{{ url_for('settings') }}" style="color:#818cf8;">Settings</a> first.
+                {% endif %}
+              </p>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const verdictColor = {Safe: "safe", Suspicious: "suspicious", Dangerous: "dangerous"};
+const verdictIcon  = {Safe: "✅", Suspicious: "⚠️", Dangerous: "🚨"};
+
+async function refreshStatus() {
+  try {
+    const res  = await fetch("{{ url_for('monitor_status') }}");
+    const data = await res.json();
+
+    // Live dot
+    const dot = document.getElementById("live-dot");
+    if (dot) dot.className = "live-dot" + (data.running ? " running" : "");
+
+    // Status text & badge
+    const st = document.getElementById("status-text");
+    if (st) st.textContent = data.running ? "MONITORING ACTIVE" : "MONITORING STOPPED";
+
+    const badge = document.getElementById("status-badge");
+    if (badge) {
+      badge.textContent = data.running ? "● RUNNING" : "◉ STOPPED";
+      badge.className   = "verdict-badge " + (data.running ? "safe" : "suspicious");
+    }
+
+    // Metrics
+    const lc = document.getElementById("last-check");
+    if (lc) lc.textContent = data.last_check || "—";
+
+    ["scanned-count", "metric-scanned"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = data.emails_scanned;
+    });
+
+    ["active-accounts", "metric-accounts"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = data.active_accounts || 0;
+    });
+
+    const ms = document.getElementById("metric-status");
+    if (ms) {
+      ms.textContent = data.running ? "LIVE" : "OFF";
+      ms.style.color = data.running ? "var(--safe)" : "var(--text-muted)";
+    }
+
+    // Recent table
+    const tbody = document.getElementById("recent-body");
+    if (tbody && data.recent && data.recent.length) {
+      tbody.innerHTML = data.recent.map(e => `
+        <tr>
+          <td><span style="font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;">${e.time}</span></td>
+          <td style="font-size:13px;color:var(--text-secondary);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.from}</td>
+          <td style="font-size:13px;color:var(--text-secondary);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.subject}</td>
+          <td><span class="verdict-badge ${verdictColor[e.verdict] || 'suspicious'}" style="font-size:11px;padding:4px 10px;">${verdictIcon[e.verdict] || ''} ${e.verdict}</span></td>
+          <td><a href="/result/${e.scan_id}" class="btn btn-outline btn-sm">View</a></td>
+        </tr>`).join("");
+    }
+  } catch (e) {
+    // Silent retry
+  }
+}
+
+setInterval(refreshStatus, 5000);
+</script>
+{% endblock %}

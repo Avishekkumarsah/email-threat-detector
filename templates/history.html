@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}Scan History | Email Threat Detector{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="d-flex justify-between align-center mb-6 flex-wrap gap-3" style="margin-bottom:24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+  <div>
+    <h1 class="page-title">🕒 Scan History</h1>
+    <p class="page-subtitle">All previously analyzed emails and their threat assessments</p>
+  </div>
+  <a href="{{ url_for('index') }}" class="btn btn-primary" id="analyze-new-btn">
+    🔍 Analyze New Email
+  </a>
+</div>
+
+<!-- Controls: Search + Filter Chips + Sort -->
+<div style="display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:20px;">
+
+  <!-- Search input -->
+  <div style="position:relative; flex:1; min-width:240px;">
+    <span style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted);">🔍</span>
+    <input type="text" id="search-box" class="search-input"
+           placeholder="Search by filename, sender, subject…"
+           style="width:100%; padding:10px 14px 10px 38px; background:#07111f; border:1px solid rgba(99,102,241,0.2); border-radius:10px; color:#e2e8f0; font-size:14px; font-family:'Inter',sans-serif; outline:none; transition:border-color 0.2s; box-sizing:border-box;">
+  </div>
+
+  <!-- Filter Buttons -->
+  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <button type="button" class="filter-chip active" data-verdict="all" onclick="setVerdictFilter('all', this)"
+            style="padding:8px 14px; border-radius:20px; border:1px solid rgba(99,102,241,0.3); background:rgba(99,102,241,0.2); color:#818cf8; font-size:12px; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;">
+      All Scans
+    </button>
+    <button type="button" class="filter-chip" data-verdict="safe" onclick="setVerdictFilter('safe', this)"
+            style="padding:8px 14px; border-radius:20px; border:1px solid rgba(34,197,94,0.2); background:rgba(34,197,94,0.06); color:#86efac; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">
+      ✅ Safe
+    </button>
+    <button type="button" class="filter-chip" data-verdict="suspicious" onclick="setVerdictFilter('suspicious', this)"
+            style="padding:8px 14px; border-radius:20px; border:1px solid rgba(234,179,8,0.2); background:rgba(234,179,8,0.06); color:#fde047; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">
+      ⚠️ Suspicious
+    </button>
+    <button type="button" class="filter-chip" data-verdict="dangerous" onclick="setVerdictFilter('dangerous', this)"
+            style="padding:8px 14px; border-radius:20px; border:1px solid rgba(239,68,68,0.2); background:rgba(239,68,68,0.06); color:#fca5a5; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">
+      🚨 Dangerous
+    </button>
+  </div>
+
+  <!-- Sort By -->
+  <div>
+    <select id="sort-select" onchange="applyFiltersAndSort()"
+            style="padding:9px 14px; background:#07111f; border:1px solid rgba(99,102,241,0.2); border-radius:10px; color:#e2e8f0; font-size:13px; font-family:'Inter',sans-serif; outline:none; cursor:pointer;">
+      <option value="date-desc">📅 Newest First</option>
+      <option value="date-asc">📅 Oldest First</option>
+      <option value="score-desc">📊 Highest Score</option>
+      <option value="score-asc">📊 Lowest Score</option>
+    </select>
+  </div>
+
+</div>
+
+<!-- History Table Card -->
+<div class="card">
+  {% if scans %}
+  <div style="overflow-x:auto;">
+    <table class="history-table" id="history-table" aria-label="Scan history">
+      <thead>
+        <tr>
+          <th scope="col">📅 Date</th>
+          <th scope="col">📄 Filename</th>
+          <th scope="col">📨 Sender</th>
+          <th scope="col">📝 Subject</th>
+          <th scope="col">📊 Score</th>
+          <th scope="col">🏷 Verdict</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="history-tbody">
+        {% for s in scans %}
+        <tr class="history-row" data-verdict="{{ s.verdict|lower }}" data-score="{{ s.final_score }}" data-date="{{ s.scan_date }}">
+          <td>
+            <span class="date-str font-mono" style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
+              {{ s.scan_date }}
+            </span>
+          </td>
+          <td>
+            <span class="file-name" title="{{ s.filename }}" style="font-weight:600; color:var(--text-primary); max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block;">
+              {{ s.filename }}
+            </span>
+          </td>
+          <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; color:var(--text-secondary);">
+            {{ s.sender or '—' }}
+          </td>
+          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; color:var(--text-secondary);">
+            {{ s.subject or '—' }}
+          </td>
+          <td>
+            {% set score_class = 'danger' if s.final_score > 65 else ('warn' if s.final_score > 30 else 'safe') %}
+            <span class="score-chip {{ score_class }}" style="font-family:'JetBrains Mono',monospace;">
+              {{ s.final_score }}/100
+            </span>
+          </td>
+          <td>
+            {% set vc = {"Safe": "safe", "Suspicious": "suspicious", "Dangerous": "dangerous"}[s.verdict] %}
+            <span class="verdict-badge {{ vc }}" style="font-size:11px; padding:4px 10px;">
+              {% if s.verdict == 'Safe' %}✅{% elif s.verdict == 'Suspicious' %}⚠️{% else %}🚨{% endif %}
+              {{ s.verdict }}
+            </span>
+          </td>
+          <td>
+            <div class="actions-cell" style="display:flex; gap:6px; align-items:center;">
+              <a href="{{ url_for('result', scan_id=s.id) }}"
+                 class="btn btn-outline btn-sm" aria-label="View result for {{ s.filename }}">
+                View
+              </a>
+              <a href="{{ url_for('history_delete', scan_id=s.id) }}"
+                 class="btn btn-danger-outline btn-sm"
+                 aria-label="Delete scan for {{ s.filename }}"
+                 onclick="return confirm('Delete this scan?')">
+                Delete
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div><!-- /overflow -->
+
+  {% else %}
+  <!-- Empty state -->
+  <div class="empty-state">
+    <span class="empty-icon">📂</span>
+    <p class="empty-title">No scans yet</p>
+    <p class="empty-desc">Your analyzed emails will appear here once you scan them.</p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary" id="empty-analyze-btn">
+      🔍 Analyze your first email
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+  let activeVerdict = 'all';
+
+  function setVerdictFilter(v, btnEl) {
+    activeVerdict = v;
+    document.querySelectorAll('.filter-chip').forEach(b => {
+      b.style.background = 'rgba(255,255,255,0.04)';
+      b.style.color = '#94a3b8';
+      b.style.borderColor = 'rgba(255,255,255,0.1)';
+    });
+    if (v === 'all') {
+      btnEl.style.background = 'rgba(99,102,241,0.2)';
+      btnEl.style.color = '#818cf8';
+      btnEl.style.borderColor = 'rgba(99,102,241,0.4)';
+    } else if (v === 'safe') {
+      btnEl.style.background = 'rgba(34,197,94,0.2)';
+      btnEl.style.color = '#86efac';
+      btnEl.style.borderColor = 'rgba(34,197,94,0.4)';
+    } else if (v === 'suspicious') {
+      btnEl.style.background = 'rgba(234,179,8,0.2)';
+      btnEl.style.color = '#fde047';
+      btnEl.style.borderColor = 'rgba(234,179,8,0.4)';
+    } else if (v === 'dangerous') {
+      btnEl.style.background = 'rgba(239,68,68,0.2)';
+      btnEl.style.color = '#fca5a5';
+      btnEl.style.borderColor = 'rgba(239,68,68,0.4)';
+    }
+    applyFiltersAndSort();
+  }
+
+  function applyFiltersAndSort() {
+    const q = document.getElementById('search-box').value.toLowerCase().trim();
+    const sortVal = document.getElementById('sort-select').value;
+    const tbody = document.getElementById('history-tbody');
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll('.history-row'));
+
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      const verdict = row.getAttribute('data-verdict');
+      const matchesSearch = !q || text.includes(q);
+      const matchesVerdict = activeVerdict === 'all' || verdict === activeVerdict;
+
+      if (matchesSearch && matchesVerdict) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+
+    // Sort visible rows
+    rows.sort((a, b) => {
+      if (sortVal === 'date-desc') {
+        return (b.getAttribute('data-date') || '').localeCompare(a.getAttribute('data-date') || '');
+      } else if (sortVal === 'date-asc') {
+        return (a.getAttribute('data-date') || '').localeCompare(b.getAttribute('data-date') || '');
+      } else if (sortVal === 'score-desc') {
+        return parseInt(b.getAttribute('data-score') || 0) - parseInt(a.getAttribute('data-score') || 0);
+      } else if (sortVal === 'score-asc') {
+        return parseInt(a.getAttribute('data-score') || 0) - parseInt(b.getAttribute('data-score') || 0);
+      }
+      return 0;
+    });
+
+    rows.forEach(row => tbody.appendChild(row));
+  }
+
+  document.getElementById('search-box')?.addEventListener('input', applyFiltersAndSort);
+</script>
+{% endblock %}

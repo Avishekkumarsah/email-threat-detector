@@ -1,0 +1,16 @@
+Flask==3.0.3
+python-dotenv==1.0.1
+scikit-learn==1.5.1
+pandas==2.2.2
+joblib==1.4.2
+matplotlib==3.9.0
+beautifulsoup4==4.12.3
+requests==2.32.3
+reportlab==4.2.2
+Flask-Login==0.6.3
+cryptography==42.0.8
+Werkzeug==3.0.3
+gunicorn==22.0.0
+psycopg2-binary==2.9.9
+Flask-WTF==1.2.1
+Flask-Mail==0.10.0

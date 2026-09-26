@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}Settings | Email Threat Detector{% endblock %}
+
+{% block content %}
+
+<div style="max-width:720px; margin:0 auto; padding:8px 0 40px;">
+
+  <!-- Page Header -->
+  <div style="margin-bottom:32px;">
+    <h1 class="page-title">⚙️ Account Settings</h1>
+    <p class="page-subtitle">Manage your account information and IMAP inbox configuration</p>
+  </div>
+
+  <!-- ── Account Info Card ── -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header-inner">
+      <span>👤</span>
+      <div>
+        <p class="card-title">Account Information</p>
+        <p class="card-subtitle">Your registered profile details</p>
+      </div>
+    </div>
+    <div style="padding:0 24px 24px; display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div style="background:#07111f; border-radius:10px; padding:16px; border:1px solid rgba(99,102,241,0.12);">
+        <p style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 6px;">Username</p>
+        <p style="font-size:16px; font-weight:700; color:#e2e8f0; margin:0; font-family:'JetBrains Mono',monospace;">{{ current_user.username }}</p>
+      </div>
+      <div style="background:#07111f; border-radius:10px; padding:16px; border:1px solid rgba(99,102,241,0.12);">
+        <p style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 6px;">Email Address</p>
+        <p style="font-size:14px; font-weight:600; color:#e2e8f0; margin:0; word-break:break-all;">{{ current_user.email }}</p>
+      </div>
+      <div style="background:#07111f; border-radius:10px; padding:16px; border:1px solid rgba(99,102,241,0.12);">
+        <p style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 6px;">Member Since</p>
+        <p style="font-size:14px; font-weight:600; color:#e2e8f0; margin:0;">{{ current_user.created_at[:10] if current_user.created_at else '—' }}</p>
+      </div>
+      <div style="background:#07111f; border-radius:10px; padding:16px; border:1px solid rgba(99,102,241,0.12);">
+        <p style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 6px;">Live Monitor</p>
+        {% if imap_creds %}
+          {% if imap_creds.is_active %}
+            <span class="verdict-badge safe" style="font-size:11px; padding:4px 10px;">● Enabled</span>
+          {% else %}
+            <span class="verdict-badge suspicious" style="font-size:11px; padding:4px 10px;">◉ Disabled</span>
+          {% endif %}
+        {% else %}
+          <span class="verdict-badge" style="font-size:11px; padding:4px 10px; background:rgba(255,255,255,0.05); color:#64748b; border:1px solid rgba(255,255,255,0.08);">Not configured</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── IMAP Configuration Card ── -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header-inner">
+      <span>📧</span>
+      <div>
+        <p class="card-title">IMAP Inbox Configuration</p>
+        <p class="card-subtitle">Connect your email account for real-time threat monitoring</p>
+      </div>
+      <!-- Connection status badge -->
+      {% if imap_creds %}
+        <span class="verdict-badge safe" style="font-size:11px; padding:4px 12px; margin-left:auto;">✓ Connected</span>
+      {% else %}
+        <span style="margin-left:auto; font-size:12px; color:#64748b; font-weight:600;">Not configured</span>
+      {% endif %}
+    </div>
+
+    <!-- Provider Preset Buttons -->
+    <div style="padding:0 24px 20px;">
+      <p style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:12px;">Quick Provider Setup</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        {% for name, host, port in [
+            ('Gmail', 'imap.gmail.com', '993'),
+            ('Outlook', 'outlook.office365.com', '993'),
+            ('Yahoo', 'imap.mail.yahoo.com', '993'),
+        ] %}
+        <button type="button" onclick="setProvider('{{ host }}', '{{ port }}')"
+                id="preset-{{ name|lower }}"
+                style="padding:8px 18px; border-radius:8px; border:1px solid rgba(99,102,241,0.25); background:rgba(99,102,241,0.08); color:#94a3b8; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; font-family:'Inter',sans-serif;">
+          {{ name }}
+        </button>
+        {% endfor %}
+        <button type="button" onclick="setProvider('', '')" id="preset-custom"
+                style="padding:8px 18px; border-radius:8px; border:1px solid rgba(99,102,241,0.25); background:rgba(99,102,241,0.08); color:#94a3b8; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; font-family:'Inter',sans-serif;">
+          Custom
+        </button>
+      </div>
+    </div>
+
+    <!-- IMAP Form -->
+    <form action="{{ url_for('settings') }}" method="post" id="imap-form" style="padding:0 24px 24px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="save">
+
+      <div style="display:grid; grid-template-columns:1fr 120px; gap:16px; margin-bottom:16px;">
+        <div>
+          <label for="imap-host" style="display:block; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:8px;">IMAP Host</label>
+          <input type="text" id="imap-host" name="imap_host" required
+                 placeholder="imap.gmail.com"
+                 value="{{ imap_creds.imap_host if imap_creds else '' }}"
+                 style="width:100%; padding:11px 14px; background:#07111f; border:1px solid rgba(99,102,241,0.2); border-radius:10px; color:#e2e8f0; font-size:14px; font-family:'Inter',sans-serif; outline:none; transition:border-color 0.2s; box-sizing:border-box;">
+        </div>
+        <div>
+          <label for="imap-port" style="display:block; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:8px;">Port</label>
+          <input type="number" id="imap-port" name="imap_port" required
+                 placeholder="993"
+                 value="{{ imap_creds.imap_port if imap_creds else '993' }}"
+                 style="width:100%; padding:11px 14px; background:#07111f; border:1px solid rgba(99,102,241,0.2); border-radius:10px; color:#e2e8f0; font-size:14px; font-family:'Inter',sans-serif; outline:none; transition:border-color 0.2s; box-sizing:border-box;">
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label for="imap-email" style="display:block; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:8px;">Email Address</label>
+        <input type="email" id="imap-email" name="imap_email" required
+               placeholder="your.email@gmail.com"
+               value="{{ imap_creds.imap_email if imap_creds else '' }}"
+               style="width:100%; padding:11px 14px; background:#07111f; border:1px solid rgba(99,102,241,0.2); border-radius:10px; color:#e2e8f0; font-size:14px; font-family:'Inter',sans-serif; outline:none; transition:border-color 0.2s; box-sizing:border-box;">
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <label for="imap-pass" style="display:block; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:8px;">
+          App Password
+          {% if imap_creds %}<span style="color:#6366f1; font-size:10px;">(leave blank to keep existing)</span>{% endif %}
+        </label>
+        <div style="position:relative;">
+          <input type="password" id="imap-pass" name="imap_pass"
+                 {% if not imap_creds %}required{% endif %}
+                 placeholder="{% if imap_creds %}••••••••••••••••{% else %}Gmail App Password (not your main password){% endif %}"
+                 style="width:100%; padding:11px 48px 11px 14px; background:#07111f; border:1px solid rgba(99,102,241,0.2); border-radius:10px; color:#e2e8f0; font-size:14px; font-family:'Inter',sans-serif; outline:none; transition:border-color 0.2s; box-sizing:border-box;">
+          <button type="button" onclick="togglePass('imap-pass')"
+                  style="position:absolute; right:14px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:16px; color:#64748b;" aria-label="Show/hide password">👁️</button>
+        </div>
+        {% if not imap_creds %}
+        <p style="font-size:11px; color:#64748b; margin:6px 0 0;">
+          💡 For Gmail: <strong style="color:#94a3b8;">Google Account → Security → 2-Step Verification → App Passwords</strong>
+        </p>
+        {% endif %}
+      </div>
+
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <button type="submit" id="save-imap-btn"
+                style="padding:11px 28px; background:linear-gradient(135deg,#6366f1,#8b5cf6); border:none; border-radius:10px; color:#fff; font-size:14px; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif; transition:opacity 0.2s; flex-shrink:0;">
+          💾 Save Configuration
+        </button>
+        {% if imap_creds %}
+        <a href="{{ url_for('monitor') }}"
+           style="padding:11px 24px; border:1px solid rgba(99,102,241,0.3); border-radius:10px; color:#818cf8; font-size:14px; font-weight:600; text-decoration:none; transition:background 0.2s; display:flex; align-items:center; gap:6px;">
+          📡 Go to Monitor
+        </a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <!-- ── Enable/Disable Monitoring Toggle ── -->
+  {% if imap_creds %}
+  <div class="card">
+    <div class="card-header-inner">
+      <span>🔛</span>
+      <div>
+        <p class="card-title">Live Monitoring</p>
+        <p class="card-subtitle">Toggle real-time inbox polling for your connected account</p>
+      </div>
+    </div>
+    <div style="padding:0 24px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+      <div>
+        <p style="font-size:14px; color:#94a3b8; margin:0 0 4px;">
+          Current status:
+          {% if imap_creds.is_active %}
+            <strong style="color:#22c55e;">● Active — monitoring {{ imap_creds.imap_email }}</strong>
+          {% else %}
+            <strong style="color:#64748b;">◉ Disabled</strong>
+          {% endif %}
+        </p>
+        <p style="font-size:12px; color:#64748b; margin:0;">Polls every 30 seconds for new suspicious emails</p>
+      </div>
+      <form action="{{ url_for('settings') }}" method="post" style="flex-shrink:0;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="toggle">
+        <button type="submit" id="toggle-monitor-btn"
+                class="toggle-btn {% if imap_creds.is_active %}toggle-btn--active{% else %}toggle-btn--inactive{% endif %}">
+          {% if imap_creds.is_active %}⏹ Disable Monitoring{% else %}▶ Enable Monitoring{% endif %}
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .toggle-btn {
+    padding: 10px 24px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.2s;
+  }
+  .toggle-btn--active {
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.1);
+    color: #fca5a5;
+  }
+  .toggle-btn--inactive {
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    background: rgba(34, 197, 94, 0.1);
+    color: #86efac;
+  }
+  .toggle-btn--active:hover {
+    background: rgba(239, 68, 68, 0.2);
+  }
+  .toggle-btn--inactive:hover {
+    background: rgba(34, 197, 94, 0.2);
+  }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function setProvider(host, port) {
+    document.getElementById('imap-host').value = host;
+    document.getElementById('imap-port').value = port;
+  }
+  function togglePass(id) {
+    const inp = document.getElementById(id);
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  }
+  // Focus glow
+  document.querySelectorAll('input').forEach(el => {
+    el.addEventListener('focus', () => el.style.borderColor = 'rgba(99,102,241,0.6)');
+    el.addEventListener('blur',  () => el.style.borderColor = 'rgba(99,102,241,0.2)');
+  });
+  // Preset button hover
+  document.querySelectorAll('[id^="preset-"]').forEach(btn => {
+    btn.addEventListener('mouseenter', () => { btn.style.background='rgba(99,102,241,0.18)'; btn.style.color='#e2e8f0'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background='rgba(99,102,241,0.08)'; btn.style.color='#94a3b8'; });
+  });
+</script>
+{% endblock %}

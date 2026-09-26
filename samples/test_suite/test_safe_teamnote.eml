@@ -1,0 +1,22 @@
+Delivered-To: shyam@bmsit.in
+Received: from mail.bmsit.in ([103.21.244.10])
+  by mx.bmsit.in with ESMTPS; Mon, 22 Sep 2025 09:30:00 +0000
+Authentication-Results: mx.bmsit.in; spf=pass smtp.mailfrom=bmsit.in; dkim=pass; dmarc=pass
+DKIM-Signature: v=1; a=rsa-sha256; d=bmsit.in; s=default
+Message-ID: <teamnote001@bmsit.in>
+From: "Priya (Team Lead)" <priya@bmsit.in>
+Reply-To: priya@bmsit.in
+Return-Path: <priya@bmsit.in>
+To: shyam@bmsit.in
+Subject: Notes from today's standup
+Date: Mon, 22 Sep 2025 09:29:00 +0000
+Content-Type: text/plain; charset="UTF-8"
+
+Hey Shyam,
+
+Quick notes from today's standup - please finish the database module by
+Wednesday so we can start integration testing. Let me know if you're blocked
+on anything.
+
+Thanks,
+Priya

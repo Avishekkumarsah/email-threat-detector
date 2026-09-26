@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AI-powered email threat detection and forensic analysis platform">
+  <title>{% block title %}Email Threat Detector{% endblock %}</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Custom CSS -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+  {% block extra_head %}{% endblock %}
+  <style>
+    /* ── Auth-aware Nav additions ── */
+    .nav-user-area {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+    }
+    .nav-user-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.25);
+      border-radius: 24px;
+      padding: 6px 14px 6px 8px;
+      color: #e2e8f0;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .nav-user-btn:hover { background: rgba(99,102,241,0.22); border-color: rgba(99,102,241,0.45); }
+    .nav-user-avatar {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: #fff;
+    }
+    .nav-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      background: #0f1729;
+      border: 1px solid rgba(99,102,241,0.25);
+      border-radius: 12px;
+      min-width: 180px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+      overflow: hidden;
+      display: none;
+      z-index: 1000;
+    }
+    .nav-dropdown.open { display: block; animation: dropIn 0.15s ease; }
+    @keyframes dropIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+    .nav-dropdown-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .nav-dropdown-header .dd-name { font-size: 13px; font-weight: 700; color: #e2e8f0; }
+    .nav-dropdown-header .dd-email { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .nav-dropdown a, .nav-dropdown button {
+      display: flex; align-items: center; gap: 10px;
+      width: 100%; padding: 10px 16px;
+      color: #94a3b8; font-size: 13px; font-weight: 500;
+      text-decoration: none; background: none; border: none; cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-dropdown a:hover, .nav-dropdown button:hover {
+      background: rgba(99,102,241,0.1); color: #e2e8f0;
+    }
+    .nav-dropdown .dd-logout { color: #f87171 !important; }
+    .nav-dropdown .dd-logout:hover { background: rgba(239,68,68,0.1) !important; }
+    .nav-auth-links { display: flex; align-items: center; gap: 8px; }
+    .nav-auth-links .btn-login {
+      padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      color: #94a3b8; text-decoration: none; transition: color 0.2s;
+    }
+    .nav-auth-links .btn-login:hover { color: #e2e8f0; }
+    .nav-auth-links .btn-register {
+      padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff; text-decoration: none; transition: opacity 0.2s;
+    }
+    .nav-auth-links .btn-register:hover { opacity: 0.88; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation ── -->
+  <nav class="etd-nav" role="navigation" aria-label="Main navigation">
+    <div class="container">
+      <a class="nav-brand" href="{{ url_for('index') if current_user.is_authenticated else url_for('login') }}" aria-label="Email Threat Detector Home">
+        <div class="nav-brand-icon" aria-hidden="true">🛡️</div>
+        <div class="nav-brand-text">
+          <span class="nav-brand-title">Email Threat Detector</span>
+          <span class="nav-brand-subtitle">Threat Intelligence &amp; Email Forensics</span>
+        </div>
+      </a>
+
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+
+      <div class="nav-links" id="nav-links" role="menubar">
+        {% if current_user.is_authenticated %}
+          <!-- Logged-in navigation -->
+          <a class="nav-link-item {% if request.endpoint == 'index' %}active{% endif %}"
+             href="{{ url_for('index') }}" role="menuitem" id="nav-home">
+            <span class="nav-link-icon" aria-hidden="true">🏠</span> Home
+          </a>
+          <a class="nav-link-item {% if request.endpoint == 'monitor' %}active{% endif %}"
+             href="{{ url_for('monitor') }}" role="menuitem" id="nav-monitor">
+            <span class="nav-link-icon" aria-hidden="true">📡</span> Live Monitor
+          </a>
+          <a class="nav-link-item {% if request.endpoint == 'history' %}active{% endif %}"
+             href="{{ url_for('history') }}" role="menuitem" id="nav-history">
+            <span class="nav-link-icon" aria-hidden="true">🕒</span> History
+          </a>
+          <a class="nav-link-item {% if request.endpoint == 'settings' %}active{% endif %}"
+             href="{{ url_for('settings') }}" role="menuitem" id="nav-settings">
+            <span class="nav-link-icon" aria-hidden="true">⚙️</span> Settings
+          </a>
+          {% if current_user.is_admin %}
+          <a class="nav-link-item {% if request.endpoint == 'admin' %}active{% endif %}"
+             href="{{ url_for('admin') }}" role="menuitem" id="nav-admin" style="color:#f59e0b;">
+            <span class="nav-link-icon" aria-hidden="true">👑</span> Admin
+          </a>
+          {% endif %}
+
+          <!-- User avatar dropdown -->
+          <div class="nav-user-area" id="nav-user-area">
+            <button class="nav-user-btn" id="nav-user-btn" aria-haspopup="true" aria-expanded="false">
+              <div class="nav-user-avatar" aria-hidden="true">{{ current_user.username[0]|upper }}</div>
+              <span>{{ current_user.username }}</span>
+              <span style="font-size:10px; opacity:0.6;">▾</span>
+            </button>
+            <div class="nav-dropdown" id="nav-dropdown" role="menu">
+              <div class="nav-dropdown-header">
+                <div class="dd-name">{{ current_user.username }}</div>
+                <div class="dd-email">{{ current_user.email }}</div>
+              </div>
+              {% if current_user.is_admin %}
+              <a href="{{ url_for('admin') }}" role="menuitem" style="color:#f59e0b; font-weight:600;">
+                <span>👑</span> Admin Panel
+              </a>
+              {% endif %}
+              <a href="{{ url_for('settings') }}" role="menuitem">
+                <span>⚙️</span> Account Settings
+              </a>
+              <a href="{{ url_for('history') }}" role="menuitem">
+                <span>🕒</span> My Scan History
+              </a>
+              <a href="{{ url_for('logout') }}" class="dd-logout" role="menuitem">
+                <span>🚪</span> Sign Out
+              </a>
+            </div>
+          </div>
+
+        {% else %}
+          <!-- Logged-out navigation -->
+          <div class="nav-auth-links">
+            <a class="btn-login" href="{{ url_for('login') }}" id="nav-login">Sign In</a>
+            <a class="btn-register" href="{{ url_for('register') }}" id="nav-register">Get Started</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Flash Messages ── -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-container" aria-live="polite">
+        {% for category, message in messages %}
+          <div class="flash-msg {{ category }}" role="alert">
+            <span>
+              {% if category == 'danger' %}⚠️{% elif category == 'success' %}✅{% elif category == 'warning' %}⚡{% else %}ℹ️{% endif %}
+              {{ message }}
+            </span>
+            <button class="flash-close" onclick="this.parentElement.remove()" aria-label="Dismiss">&times;</button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- ── Page Content ── -->
+  <main class="page-wrapper" id="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    // Mobile nav toggle
+    const navToggle = document.getElementById('nav-toggle');
+    const navLinks  = document.getElementById('nav-links');
+    if (navToggle) {
+      navToggle.addEventListener('click', () => {
+        const open = navLinks.classList.toggle('open');
+        navToggle.setAttribute('aria-expanded', open);
+        navToggle.textContent = open ? '✕' : '☰';
+      });
+    }
+
+    // User dropdown toggle
+    const userBtn  = document.getElementById('nav-user-btn');
+    const dropdown = document.getElementById('nav-dropdown');
+    if (userBtn && dropdown) {
+      userBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = dropdown.classList.toggle('open');
+        userBtn.setAttribute('aria-expanded', open);
+      });
+      document.addEventListener('click', () => {
+        dropdown.classList.remove('open');
+        if (userBtn) userBtn.setAttribute('aria-expanded', false);
+      });
+    }
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
