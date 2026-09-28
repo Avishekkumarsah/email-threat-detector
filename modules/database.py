@@ -78,6 +78,10 @@ def init_db():
     if not _column_exists(conn, "users", "is_admin"):
         conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
 
+    # Migration: add last_login column to existing users table if absent
+    if not _column_exists(conn, "users", "last_login"):
+        conn.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
+
     # Ensure at least one admin exists (make user ID 1 admin)
     has_admin = conn.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1").fetchone()[0]
     if not has_admin:
@@ -145,9 +149,10 @@ def migrate_existing_scans_to_user(user_id: int):
 def create_user(username: str, email: str, password_hash: str) -> int:
     conn = _connect()
     try:
+        now = datetime.now().isoformat(timespec="seconds")
         cur = conn.execute(
-            "INSERT INTO users (username, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-            (username, email, password_hash, datetime.now().isoformat(timespec="seconds")),
+            "INSERT INTO users (username, email, password_hash, created_at, last_login) VALUES (?, ?, ?, ?, ?)",
+            (username.strip(), email.strip().lower(), password_hash, now, now),
         )
         conn.commit()
         return cur.lastrowid
@@ -163,17 +168,46 @@ def get_user_by_id(user_id: int):
 
 
 def get_user_by_username(username: str):
+    if not username:
+        return None
     conn = _connect()
-    row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    row = conn.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (username.strip(),)).fetchone()
     conn.close()
     return dict(row) if row else None
 
 
 def get_user_by_email(email: str):
+    if not email:
+        return None
     conn = _connect()
-    row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    row = conn.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email.strip(),)).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def get_user_by_identifier(identifier: str):
+    """Search for user by username OR email case-insensitively."""
+    if not identifier:
+        return None
+    val = identifier.strip()
+    conn = _connect()
+    row = conn.execute(
+        "SELECT * FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)",
+        (val, val.lower())
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def update_last_login(user_id: int):
+    """Record current timestamp as last_login for the given user_id."""
+    conn = _connect()
+    conn.execute(
+        "UPDATE users SET last_login = ? WHERE id = ?",
+        (datetime.now().isoformat(timespec="seconds"), user_id)
+    )
+    conn.commit()
+    conn.close()
 
 
 def count_users() -> int:
@@ -201,24 +235,23 @@ def ensure_super_admin():
     """
     from werkzeug.security import generate_password_hash
 
-    email    = config.SUPER_ADMIN_EMAIL.lower()
-    username = config.SUPER_ADMIN_USERNAME
-    pw_hash  = generate_password_hash(config.SUPER_ADMIN_PASSWORD)
+    email    = config.SUPER_ADMIN_EMAIL.lower().strip()
+    username = config.SUPER_ADMIN_USERNAME.strip()
     now      = datetime.now().isoformat(timespec="seconds")
 
     conn = _connect()
-    existing = conn.execute("SELECT id, is_admin FROM users WHERE email = ?", (email,)).fetchone()
+    existing = conn.execute("SELECT id, is_admin FROM users WHERE LOWER(email) = LOWER(?)", (email,)).fetchone()
     if existing:
-        # Account exists — make sure it is always admin
-        if not existing["is_admin"]:
-            conn.execute("UPDATE users SET is_admin = 1 WHERE email = ?", (email,))
-            conn.commit()
+        # Account exists — ensure is_admin = 1 without overwriting registered password
+        conn.execute("UPDATE users SET is_admin = 1 WHERE id = ?", (existing["id"],))
+        conn.commit()
     else:
         # Create the super admin for the first time
+        pw_hash = generate_password_hash(config.SUPER_ADMIN_PASSWORD)
         conn.execute(
-            "INSERT INTO users (username, email, password_hash, created_at, is_admin) "
-            "VALUES (?, ?, ?, ?, 1)",
-            (username, email, pw_hash, now),
+            "INSERT INTO users (username, email, password_hash, created_at, last_login, is_admin) "
+            "VALUES (?, ?, ?, ?, ?, 1)",
+            (username, email, pw_hash, now, now),
         )
         conn.commit()
     conn.close()
@@ -341,14 +374,12 @@ def get_all_users_with_stats():
     """Returns detailed user records along with scan counts and active IMAP status for admin."""
     conn = _connect()
     rows = conn.execute("""
-        SELECT u.id, u.username, u.email, u.created_at, u.is_admin,
-               COUNT(s.id) AS scan_count,
+        SELECT u.id, u.username, u.email, u.created_at, u.last_login, u.is_admin,
+               (SELECT COUNT(*) FROM scans s WHERE s.user_id = u.id) AS scan_count,
                ic.is_active AS imap_active,
                ic.imap_email
         FROM users u
-        LEFT JOIN scans s ON s.user_id = u.id
         LEFT JOIN imap_credentials ic ON ic.user_id = u.id
-        GROUP BY u.id
         ORDER BY u.id ASC
     """).fetchall()
     conn.close()

@@ -733,6 +733,9 @@
 {% endblock %}
 
 {% block scripts %}
+<script id="analytics-data" type="application/json">
+{{ analytics | tojson | safe }}
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 <script>
@@ -841,7 +844,8 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   /* ── Charts ── */
-  const analytics = {{ analytics | tojson | safe }};
+  const analyticsEl = document.getElementById("analytics-data");
+  const analytics = analyticsEl ? JSON.parse(analyticsEl.textContent) : { verdict_counts: {}, timeseries: { dates: [], safe: [], suspicious: [], dangerous: [] } };
   const CHART_COLORS = { grid: "rgba(255,255,255,0.05)", tick: "#334155" };
 
   // Doughnut

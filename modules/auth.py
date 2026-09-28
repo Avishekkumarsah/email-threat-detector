@@ -24,6 +24,7 @@ class User(UserMixin):
         self.email = row["email"]
         self.password_hash = row["password_hash"]
         self.created_at = row.get("created_at", "")
+        self.last_login = row.get("last_login", "")
         self.is_admin = bool(row.get("is_admin", 0))
 
     def get_id(self):
@@ -59,21 +60,29 @@ def register_user(username: str, email: str, password: str):
     if database.count_users() == 1:
         database.migrate_existing_scans_to_user(user_id)
 
+    database.update_last_login(user_id)
     row = database.get_user_by_id(user_id)
     return User(row), None
 
 
-def verify_user(username: str, password: str):
+def verify_user(username_or_email: str, password: str):
     """
-    Check credentials.
+    Check credentials using username OR email (case-insensitive).
 
     Returns User on success, None on failure.
     """
-    row = database.get_user_by_username(username)
+    identifier = (username_or_email or "").strip()
+    if not identifier or not password:
+        return None
+
+    row = database.get_user_by_identifier(identifier)
     if not row:
         return None
     if not check_password_hash(row["password_hash"], password):
         return None
+
+    database.update_last_login(row["id"])
+    row["last_login"] = database.get_user_by_id(row["id"]).get("last_login", "")
     return User(row)
 
 

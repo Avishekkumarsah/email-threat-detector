@@ -39,6 +39,13 @@
         ▶ Start Monitoring
       </button>
     </form>
+    <form action="{{ url_for('monitor_poll_now') }}" method="post" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline" id="poll-now-btn" style="border-color:#6366f1; color:#818cf8;"
+              {% if not imap_creds %}disabled aria-disabled="true"{% endif %}>
+        ⚡ Poll Now
+      </button>
+    </form>
     <form action="{{ url_for('monitor_stop') }}" method="post" style="display:inline;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-outline" id="stop-monitor-btn"
@@ -80,8 +87,12 @@
     </div>
   </div>
   {% if status.last_error %}
-  <div style="margin-top:16px; padding:12px 16px; background:rgba(220,38,38,0.12); border:1px solid rgba(220,38,38,0.25); border-radius:8px;">
+  <div id="error-container" style="margin-top:16px; padding:12px 16px; background:rgba(220,38,38,0.12); border:1px solid rgba(220,38,38,0.25); border-radius:8px;">
     <p style="margin:0; color:#fca5a5; font-size:13px;" id="last-error">⚠️ {{ status.last_error }}</p>
+  </div>
+  {% else %}
+  <div id="error-container" style="display:none; margin-top:16px; padding:12px 16px; background:rgba(220,38,38,0.12); border:1px solid rgba(220,38,38,0.25); border-radius:8px;">
+    <p style="margin:0; color:#fca5a5; font-size:13px;" id="last-error"></p>
   </div>
   {% endif %}
 </div>
@@ -186,6 +197,18 @@ async function refreshStatus() {
     if (badge) {
       badge.textContent = data.running ? "● RUNNING" : "◉ STOPPED";
       badge.className   = "verdict-badge " + (data.running ? "safe" : "suspicious");
+    }
+
+    // Dynamic error message box
+    const errBox = document.getElementById("error-container");
+    const errTxt = document.getElementById("last-error");
+    if (errBox && errTxt) {
+      if (data.last_error) {
+        errTxt.textContent = "⚠️ " + data.last_error;
+        errBox.style.display = "block";
+      } else {
+        errBox.style.display = "none";
+      }
     }
 
     // Metrics

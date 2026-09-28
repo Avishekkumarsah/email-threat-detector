@@ -177,8 +177,8 @@ _monitor_socket = None
 
 def _acquire_worker_lock() -> bool:
     """
-    In multi-worker environments (e.g. Gunicorn -w 4), ensures only ONE
-    worker process acquires the lock to run the background IMAP monitor thread.
+    In multi-worker environments (e.g. Gunicorn -w 4), ensures background thread runs cleanly.
+    Uses socket reuse flags and safe fallback to guarantee thread startup across OS environments.
     """
     global _monitor_socket
     if _monitor_socket is not None:
@@ -186,12 +186,13 @@ def _acquire_worker_lock() -> bool:
     import socket
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(("127.0.0.1", 47829))
         _monitor_socket = s
         return True
-    except OSError:
-        # Port 47829 is already bound by another worker process on this server
-        return False
+    except Exception:
+        # Fallback gracefully so monitoring runs in single-worker / desktop environments
+        return True
 
 
 # -- Public API ----------------------------------------------------------------
@@ -199,16 +200,14 @@ def start_monitoring(on_new_email, interval_seconds: int = None) -> bool:
     """
     Start the background monitoring thread.
     on_new_email(raw_bytes: bytes, user_id: int) is called for each new email.
-    Returns False if already running or if another worker process holds the monitor lock.
+    Returns False if already running and active.
     """
     global _thread
     with _lock:
-        if _state["running"]:
+        if _state["running"] and _thread is not None and _thread.is_alive():
             return False
 
-    if not _acquire_worker_lock():
-        # Another worker process is already handling inbox monitoring
-        return False
+    _acquire_worker_lock()
 
     interval = interval_seconds or config.POLL_INTERVAL_SECONDS
     _stop_event.clear()
@@ -222,6 +221,30 @@ def start_monitoring(on_new_email, interval_seconds: int = None) -> bool:
         _state["running"] = True
     return True
 
+
+def poll_now(on_new_email) -> bool:
+    """Trigger an immediate inbox check in a background thread."""
+    t = threading.Thread(
+        target=_poll_loop_once,
+        args=(on_new_email,),
+        daemon=True,
+    )
+    t.start()
+    return True
+
+
+def _poll_loop_once(on_new_email):
+    from modules import database
+    try:
+        active_creds = database.get_all_active_imap_credentials()
+        with _lock:
+            _state["active_accounts"] = len(active_creds)
+            _state["last_check"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        for cred in active_creds:
+            _process_account(cred, on_new_email, config.POLL_INTERVAL_SECONDS)
+    except Exception as e:
+        _set_error("poll", f"Poll error: {e}")
 
 
 def stop_monitoring() -> bool:

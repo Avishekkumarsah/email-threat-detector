@@ -52,6 +52,13 @@ os.makedirs(config.REPORT_DIR,   exist_ok=True)
 database.init_db()
 database.ensure_super_admin()   # always create/repair the fixed super admin
 
+# Auto-start inbox monitoring if active IMAP accounts exist
+try:
+    if database.get_all_active_imap_credentials():
+        inbox_monitor.start_monitoring(_process_incoming_email)
+except Exception:
+    pass
+
 # -- Flask-Login ---------------------------------------------------------------
 login_manager = LoginManager(app)
 login_manager.login_view     = "login"
@@ -313,6 +320,8 @@ def settings():
             if imap_creds:
                 new_state = not bool(imap_creds["is_active"])
                 database.set_imap_active(current_user.id, new_state)
+                if new_state:
+                    inbox_monitor.start_monitoring(_process_incoming_email)
                 flash(
                     "Live monitoring enabled." if new_state else "Live monitoring disabled.",
                     "success",
@@ -357,6 +366,7 @@ def settings():
         database.save_imap_credentials(
             current_user.id, host, port, email, password, is_active=True,
         )
+        inbox_monitor.start_monitoring(_process_incoming_email)
         flash("Connected successfully. IMAP settings saved.", "success")
         return redirect(url_for("settings"))
 
@@ -503,6 +513,21 @@ def monitor_start():
 def monitor_stop():
     inbox_monitor.stop_monitoring()
     flash("Live monitoring stopped.", "success")
+    return redirect(url_for("monitor"))
+
+
+@app.route("/monitor/poll-now", methods=["POST"])
+@login_required
+def monitor_poll_now():
+    imap_creds = database.get_imap_credentials(current_user.id)
+    if not imap_creds:
+        flash("Configure your IMAP settings in Settings before triggering a scan.", "warning")
+        return redirect(url_for("settings"))
+    if not imap_creds["is_active"]:
+        database.set_imap_active(current_user.id, True)
+    inbox_monitor.start_monitoring(_process_incoming_email)
+    inbox_monitor.poll_now(_process_incoming_email)
+    flash("Triggered inbox scan check.", "success")
     return redirect(url_for("monitor"))
 
 

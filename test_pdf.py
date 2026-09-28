@@ -3,7 +3,7 @@ import sys
 from modules import report, database
 
 try:
-    scans = database.get_recent_scans(limit=1)
+    scans = database.get_all_scans()
     if scans:
         res = report.generate_report(scans[0]['id'])
         print('SUCCESS:', res)

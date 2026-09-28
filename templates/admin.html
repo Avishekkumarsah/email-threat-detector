@@ -78,6 +78,7 @@
           <th>User Account</th>
           <th>Email Address</th>
           <th>Registered On</th>
+          <th>Last Active</th>
           <th>Scans Conducted</th>
           <th>Live Monitoring</th>
           <th>Role</th>
@@ -99,6 +100,9 @@
           <td style="font-size:13px; color:var(--text-secondary);">{{ u.email }}</td>
           <td style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
             {{ u.created_at[:10] if u.created_at else '—' }}
+          </td>
+          <td style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
+            {{ u.last_login[:16].replace('T', ' ') if u.last_login else (u.created_at[:16].replace('T', ' ') if u.created_at else '—') }}
           </td>
           <td>
             <span style="display:inline-block; padding:3px 10px; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.25); border-radius:12px; font-size:12px; font-weight:700; color:#818cf8; font-family:'JetBrains Mono',monospace;">

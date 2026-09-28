@@ -48,11 +48,11 @@
       <form action="{{ url_for('login') }}" method="post" id="login-form" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <!-- Username -->
+        <!-- Username or Email -->
         <div style="margin-bottom:20px;">
-          <label for="login-username" style="display:block; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:8px;">Username</label>
+          <label for="login-username" style="display:block; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:8px;">Username or Email</label>
           <input type="text" id="login-username" name="username" required autocomplete="username"
-                 placeholder="Enter your username"
+                 placeholder="Enter username or email"
                  style="width:100%; padding:12px 16px; background:#07111f; border:1px solid rgba(99,102,241,0.2); border-radius:10px; color:#e2e8f0; font-size:14px; font-family:'Inter',sans-serif; outline:none; transition:border-color 0.2s; box-sizing:border-box;">
         </div>
 
