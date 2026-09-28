@@ -14,11 +14,36 @@ and errors are stored per user so one user never sees another user's errors.
 """
 
 import imaplib
+import socket
+import ssl
 import threading
 import traceback
 from datetime import datetime
 
 import config
+
+
+class RobustIMAP4_SSL(imaplib.IMAP4_SSL):
+    """
+    Subclass of imaplib.IMAP4_SSL that enforces IPv4 (socket.AF_INET) resolution.
+    This prevents '[Errno 101] Network is unreachable' errors caused by broken/missing
+    IPv6 routing in Linux container / cloud hosting environments (Docker, Render, AWS).
+    """
+    def _create_socket(self, timeout=None):
+        try:
+            addr_info = socket.getaddrinfo(self.host, self.port, socket.AF_INET, socket.SOCK_STREAM)
+            if addr_info:
+                ip_addr = addr_info[0][4][0]
+                server_hostname = self.host if ssl.HAS_SNI else None
+                raw_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                if timeout is not None and timeout != socket._GLOBAL_DEFAULT_TIMEOUT:
+                    raw_sock.settimeout(timeout)
+                raw_sock.connect((ip_addr, self.port))
+                return self.ssl_context.wrap_socket(raw_sock, server_hostname=server_hostname)
+        except Exception:
+            pass
+        return super()._create_socket(timeout)
+
 
 # -- Shared state --------------------------------------------------------------
 _state = {
@@ -58,7 +83,7 @@ def get_status(user_id=None) -> dict:
 def test_login(host: str, port, email: str, password: str):
     """Try a real IMAP login. Returns (ok: bool, error_message: str | None)."""
     try:
-        conn = imaplib.IMAP4_SSL(host, int(port), timeout=15)
+        conn = RobustIMAP4_SSL(host, int(port), timeout=15)
         try:
             conn.login(email, password)
         finally:
@@ -73,12 +98,19 @@ def test_login(host: str, port, email: str, password: str):
             "Use a 16-character App Password, not your normal password."
         )
     except Exception as e:
+        err_str = str(e)
+        if "101" in err_str or "unreachable" in err_str.lower():
+            return False, (
+                f"Could not reach mail server ({host}:{port}). "
+                "Network is unreachable. If deploying to cloud hosting (e.g. Render/Vercel/Railway), "
+                "ensure outbound TCP port 993 is permitted by your host."
+            )
         return False, f"Could not reach the mail server: {e}"
 
 
 # -- Per-account IMAP helpers --------------------------------------------------
 def _connect_imap(host: str, port: int, email: str, password: str):
-    conn = imaplib.IMAP4_SSL(host, port, timeout=30)
+    conn = RobustIMAP4_SSL(host, port, timeout=30)
     conn.login(email, password)
     conn.select("INBOX")
     return conn
