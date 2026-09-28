@@ -45,3 +45,5 @@ test_pdf_out.txt
 test_pdf_result.txt
 ts_stderr.txt
 ts_stdout.txt
+
+test_out.txt
