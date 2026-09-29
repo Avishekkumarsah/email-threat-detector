@@ -47,3 +47,11 @@ ts_stderr.txt
 ts_stdout.txt
 
 test_out.txt
+
+# Temporary Git command output
+diff_log.txt
+git_commit.txt
+git_log.txt
+git_push.txt
+git_push2.txt
+git_status.txt
