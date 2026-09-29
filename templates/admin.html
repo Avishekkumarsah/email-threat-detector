@@ -10,9 +10,9 @@
       👑 Admin Management Console
       <span style="font-size:12px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#fbbf24; padding:4px 10px; border-radius:20px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em;">Super Admin Access</span>
     </h1>
-    <p class="page-subtitle">Platform-wide system metrics, user usage overview, and account management.</p>
+    <p class="page-subtitle">Platform-wide system metrics, user accounts, and live monitoring overview.</p>
   </div>
-  <!-- Super Admin Credential Info Box -->
+  <!-- Super Admin Credential Info -->
   <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:14px; padding:14px 20px; min-width:260px;">
     <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#fbbf24; font-weight:700; margin:0 0 8px;">🔐 Super Admin Account</p>
     <p style="font-size:12px; color:#e2e8f0; margin:0 0 4px;"><span style="color:#64748b;">Email:</span>&nbsp;&nbsp;{{ super_admin_email }}</p>
@@ -20,10 +20,9 @@
   </div>
 </div>
 
-<!-- System Statistics Metrics Grid -->
+<!-- System Statistics -->
 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:18px; margin-bottom:32px;">
-  
-  <!-- Total Users -->
+
   <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.2); border-radius:16px; padding:22px; display:flex; align-items:center; gap:16px;">
     <div style="width:52px; height:52px; background:rgba(99,102,241,0.15); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:24px;">👥</div>
     <div>
@@ -32,7 +31,6 @@
     </div>
   </div>
 
-  <!-- Total Scans -->
   <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.2); border-radius:16px; padding:22px; display:flex; align-items:center; gap:16px;">
     <div style="width:52px; height:52px; background:rgba(139,92,246,0.15); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:24px;">📊</div>
     <div>
@@ -41,16 +39,14 @@
     </div>
   </div>
 
-  <!-- Active IMAP Monitors -->
   <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.2); border-radius:16px; padding:22px; display:flex; align-items:center; gap:16px;">
     <div style="width:52px; height:52px; background:rgba(34,197,94,0.15); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:24px;">📡</div>
     <div>
       <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 4px; font-weight:700;">Active Live Monitors</p>
-      <p style="font-size:26px; font-weight:800; color:#86efac; margin:0; font-family:'JetBrains Mono',monospace;">{{ stats.active_monitors }}</p>
+      <p style="font-size:26px; font-weight:800; color:#86efac; margin:0; font-family:'JetBrains Mono',monospace;" id="admin-active-monitors">{{ stats.active_monitors }}</p>
     </div>
   </div>
 
-  <!-- Verdict Summary -->
   <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.2); border-radius:16px; padding:22px;">
     <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 8px; font-weight:700;">Threat Verdict Breakdown</p>
     <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:600;">
@@ -61,37 +57,73 @@
   </div>
 </div>
 
-<!-- User Directory -->
+<!-- ── Live Monitor Status (all users, auto-refreshes) ── -->
+<div class="card" style="margin-bottom:32px;" id="live-monitor-panel">
+  <div class="card-header-inner">
+    <span>📡</span>
+    <div style="flex:1;">
+      <p class="card-title">Live Monitor Status — All Users</p>
+      <p class="card-subtitle">Real-time thread status for every user's inbox monitor. Refreshes every 10 s.</p>
+    </div>
+    <span id="monitor-refresh-badge" style="font-size:10px; color:#475569; font-family:'JetBrains Mono',monospace; white-space:nowrap;">auto-refresh on</span>
+  </div>
+  <div id="monitor-status-grid" style="padding:16px 24px; display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px;">
+    {% for u in users %}
+    {% set uid = u.id | string %}
+    {% set us = all_statuses.get(u.id, {}) %}
+    <div id="user-monitor-{{ u.id }}" style="background:rgba(15,23,41,0.7); border:1px solid {{ 'rgba(74,222,128,0.25)' if us.get('running') else 'rgba(100,116,139,0.2)' }}; border-radius:12px; padding:14px 16px;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+        <div style="width:10px; height:10px; border-radius:50%; background:{{ '#4ade80' if us.get('running') else '#475569' }}; flex-shrink:0;"></div>
+        <strong style="color:#e2e8f0; font-size:13px;">{{ u.username }}</strong>
+        <span style="font-size:11px; color:{{ '#4ade80' if us.get('running') else '#64748b' }}; margin-left:auto;">
+          {{ '● LIVE' if us.get('running') else '◉ OFF' }}
+        </span>
+      </div>
+      <p style="font-size:11px; color:#64748b; margin:0 0 2px;">Emails auto-scanned: <strong style="color:#94a3b8;">{{ us.get('emails_scanned', 0) }}</strong></p>
+      <p style="font-size:11px; color:#64748b; margin:0;">Last check: <strong style="color:#94a3b8; font-family:'JetBrains Mono',monospace;">{{ us.get('last_check', '—') or '—' }}</strong></p>
+      {% if us.get('last_error') %}
+      <p style="font-size:10px; color:#fca5a5; margin:6px 0 0; background:rgba(220,38,38,0.1); padding:4px 8px; border-radius:6px;">⚠ {{ us.get('last_error')[:80] }}…</p>
+      {% endif %}
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted); font-size:13px; padding:8px 0;">No users with monitoring configured yet.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── Registered Users Table ── -->
 <div class="card" style="margin-bottom:32px;">
   <div class="card-header-inner">
     <span>👥</span>
     <div>
       <p class="card-title">Registered SaaS User Accounts</p>
-      <p class="card-subtitle">List of all users registered on the platform and their scan usage</p>
+      <p class="card-subtitle">All users registered on the platform — manage roles, suspend, or delete accounts</p>
     </div>
   </div>
   <div style="overflow-x:auto;">
     <table class="history-table" aria-label="Registered user accounts">
       <thead>
         <tr>
-          <th>User ID</th>
+          <th>ID</th>
           <th>User Account</th>
           <th>Email Address</th>
           <th>Registered On</th>
           <th>Last Active</th>
-          <th>Scans Conducted</th>
-          <th>Live Monitoring</th>
+          <th>Scans</th>
+          <th>Live Monitor</th>
+          <th>Status</th>
           <th>Role</th>
-          <th>Action</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for u in users %}
-        <tr>
+        {% set is_sa = (u.email|lower == super_admin_email|lower) %}
+        <tr style="{{ 'opacity:0.6;' if not u.is_active else '' }}">
           <td><span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-muted);">#{{ u.id }}</span></td>
           <td>
             <div style="display:flex; align-items:center; gap:10px;">
-              <div style="width:32px; height:32px; background:linear-gradient(135deg,#6366f1,#8b5cf6); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:#fff;">
+              <div style="width:32px; height:32px; background:{{ 'linear-gradient(135deg,#64748b,#94a3b8)' if not u.is_active else 'linear-gradient(135deg,#6366f1,#8b5cf6)' }}; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:#fff;">
                 {{ u.username[0]|upper }}
               </div>
               <strong style="color:#e2e8f0; font-size:14px;">{{ u.username }}</strong>
@@ -112,43 +144,74 @@
           <td>
             {% if u.imap_active %}
               <span style="color:#4ade80; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
-                <span style="width:8px; height:8px; background:#4ade80; border-radius:50%; display:inline-block;"></span> Active ({{ u.imap_email }})
+                <span style="width:8px; height:8px; background:#4ade80; border-radius:50%; display:inline-block;"></span> Active
               </span>
+              <span style="font-size:11px; color:#64748b; display:block;">{{ u.imap_email }}</span>
             {% else %}
               <span style="color:#64748b; font-size:12px;">Inactive</span>
             {% endif %}
           </td>
+          <!-- Account status (active/suspended) -->
           <td>
-            {% set is_sa = (u.email|lower == super_admin_email|lower) %}
             {% if is_sa %}
-              <!-- Super Admin: protected badge -->
-              <span style="padding:3px 10px; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.4); border-radius:12px; font-size:11px; font-weight:700; color:#fbbf24; display:inline-flex; align-items:center; gap:5px;">
-                🔐 Super Admin
-              </span>
-            {% elif u.is_admin %}
-              <span style="padding:3px 10px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); border-radius:12px; font-size:11px; font-weight:700; color:#fbbf24;">
-                👑 Admin
-              </span>
+              <span style="padding:3px 10px; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.4); border-radius:12px; font-size:11px; font-weight:700; color:#fbbf24;">🔐 Protected</span>
+            {% elif u.is_active %}
+              <span style="padding:3px 10px; background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.3); border-radius:12px; font-size:11px; font-weight:700; color:#4ade80;">✓ Active</span>
             {% else %}
-              <span style="padding:3px 10px; background:rgba(148,163,184,0.1); border:1px solid rgba(148,163,184,0.2); border-radius:12px; font-size:11px; font-weight:600; color:#94a3b8;">
-                User
-              </span>
+              <span style="padding:3px 10px; background:rgba(220,38,38,0.12); border:1px solid rgba(220,38,38,0.3); border-radius:12px; font-size:11px; font-weight:700; color:#f87171;">⊗ Suspended</span>
             {% endif %}
           </td>
+          <!-- Role -->
           <td>
-            {% set is_sa = (u.email|lower == super_admin_email|lower) %}
             {% if is_sa %}
-              <!-- Super Admin row: lock button -->
+              <span style="padding:3px 10px; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.4); border-radius:12px; font-size:11px; font-weight:700; color:#fbbf24; display:inline-flex; align-items:center; gap:5px;">🔐 Super Admin</span>
+            {% elif u.is_admin %}
+              <span style="padding:3px 10px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); border-radius:12px; font-size:11px; font-weight:700; color:#fbbf24;">👑 Admin</span>
+            {% else %}
+              <span style="padding:3px 10px; background:rgba(148,163,184,0.1); border:1px solid rgba(148,163,184,0.2); border-radius:12px; font-size:11px; font-weight:600; color:#94a3b8;">User</span>
+            {% endif %}
+          </td>
+          <!-- Actions -->
+          <td>
+            {% if is_sa %}
               <span title="Protected — cannot be modified" style="font-size:18px; cursor:default; opacity:0.6;">🔒</span>
             {% elif u.id == current_user.id %}
               <span style="font-size:11px; color:var(--text-muted); font-style:italic;">(You)</span>
             {% else %}
-            <form action="{{ url_for('admin_toggle_role', user_id=u.id) }}" method="post" style="display:inline;">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px;">
-                {{ 'Revoke Admin' if u.is_admin else 'Make Admin' }}
-              </button>
-            </form>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <!-- Toggle Admin -->
+              <form action="{{ url_for('admin_toggle_role', user_id=u.id) }}" method="post" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline btn-sm" style="font-size:10px; padding:3px 8px; border-color:#6366f1; color:#818cf8;">
+                  {{ '↓ User' if u.is_admin else '↑ Admin' }}
+                </button>
+              </form>
+              <!-- Suspend / Activate -->
+              {% if u.is_active %}
+              <form action="{{ url_for('admin_suspend_user', user_id=u.id) }}" method="post" style="display:inline;"
+                    onsubmit="return confirm('Suspend {{ u.username }}? They will not be able to log in.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline btn-sm" style="font-size:10px; padding:3px 8px; border-color:#f59e0b; color:#fbbf24;">
+                  ⏸ Suspend
+                </button>
+              </form>
+              {% else %}
+              <form action="{{ url_for('admin_activate_user', user_id=u.id) }}" method="post" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline btn-sm" style="font-size:10px; padding:3px 8px; border-color:#4ade80; color:#4ade80;">
+                  ▶ Activate
+                </button>
+              </form>
+              {% endif %}
+              <!-- Delete -->
+              <form action="{{ url_for('admin_delete_user', user_id=u.id) }}" method="post" style="display:inline;"
+                    onsubmit="return confirm('⚠️ Permanently delete {{ u.username }}? This cannot be undone.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline btn-sm" style="font-size:10px; padding:3px 8px; border-color:#ef4444; color:#f87171;">
+                  🗑 Delete
+                </button>
+              </form>
+            </div>
             {% endif %}
           </td>
         </tr>
@@ -206,4 +269,59 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-refresh live monitor status panel every 10 seconds
+async function refreshAdminMonitorStatus() {
+  try {
+    const res = await fetch("{{ url_for('admin_monitor_status') }}");
+    if (!res.ok) return;
+    const statuses = await res.json();  // { "user_id": {running, emails_scanned, last_check, last_error} }
+
+    let activeCount = 0;
+    for (const [uid, st] of Object.entries(statuses)) {
+      const card = document.getElementById("user-monitor-" + uid);
+      if (!card) continue;
+
+      const running = st.running;
+      if (running) activeCount++;
+
+      // Update border colour
+      card.style.borderColor = running ? "rgba(74,222,128,0.25)" : "rgba(100,116,139,0.2)";
+
+      // Update dot colour
+      const dot = card.querySelector("div[style*='border-radius:50%']");
+      if (dot) dot.style.background = running ? "#4ade80" : "#475569";
+
+      // Update status label (last child of first flex row)
+      const statusSpan = card.querySelector("span[style*='margin-left:auto']");
+      if (statusSpan) {
+        statusSpan.textContent = running ? "● LIVE" : "◉ OFF";
+        statusSpan.style.color = running ? "#4ade80" : "#64748b";
+      }
+
+      // Update stats
+      const paragraphs = card.querySelectorAll("p");
+      if (paragraphs[0]) {
+        const strong = paragraphs[0].querySelector("strong");
+        if (strong) strong.textContent = st.emails_scanned ?? 0;
+      }
+      if (paragraphs[1]) {
+        const strong = paragraphs[1].querySelector("strong");
+        if (strong) strong.textContent = st.last_check || "—";
+      }
+    }
+
+    // Update top-level active monitors counter
+    const am = document.getElementById("admin-active-monitors");
+    if (am) am.textContent = activeCount;
+
+  } catch (e) { /* silently skip */ }
+}
+
+setInterval(refreshAdminMonitorStatus, 10000);
+setTimeout(refreshAdminMonitorStatus, 1500);
+</script>
 {% endblock %}

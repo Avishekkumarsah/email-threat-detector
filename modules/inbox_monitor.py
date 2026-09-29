@@ -3,14 +3,32 @@ inbox_monitor.py
 -----------------
 Multi-tenant real-time inbox monitoring over IMAP.
 
-Instead of polling a single hardwired account from .env, this version
-fetches ALL active IMAP credentials from the database each cycle, then
-processes each account's unseen emails.
+Architecture (v2 — per-user threads)
+-------------------------------------
+Each user with active IMAP credentials gets their OWN background thread.
+Starting / stopping one user's monitor has zero effect on others.
 
-The callback signature is:  on_new_email(raw_bytes, user_id)
+State is stored per-user in _user_state[user_id]:
+  {
+    "running":        bool,
+    "last_check":     str | None,
+    "emails_scanned": int,
+    "recent":         list[dict],   # newest-first, max 50 per user
+    "last_error":     str | None,
+  }
 
-Error handling is per-account - one bad password can't kill the entire loop,
-and errors are stored per user so one user never sees another user's errors.
+Public API
+----------
+  start_monitoring(on_new_email)           → start threads for ALL active IMAP users
+  start_monitoring_user(user_id, …)        → start/restart ONE user's thread
+  stop_monitoring()                        → stop ALL threads (admin/server shutdown)
+  stop_monitoring_user(user_id)            → stop only ONE user's thread
+  poll_now(on_new_email, user_id=None)     → one-shot poll (one user or all)
+  get_status(user_id=None)                 → status for one user (or global summary)
+  record_scan(subject, sender, verdict, …) → update live feed after auto-scan
+  test_login(host, port, email, password)  → validate IMAP credentials
+
+Callback signature: on_new_email(raw_bytes: bytes, user_id: int)
 """
 
 import imaplib
@@ -23,11 +41,12 @@ from datetime import datetime
 import config
 
 
+# ── IPv4-forced IMAP SSL ──────────────────────────────────────────────────────
+
 class RobustIMAP4_SSL(imaplib.IMAP4_SSL):
     """
-    Subclass of imaplib.IMAP4_SSL that enforces IPv4 (socket.AF_INET) resolution.
-    This prevents '[Errno 101] Network is unreachable' errors caused by broken/missing
-    IPv6 routing in Linux container / cloud hosting environments (Docker, Render, AWS).
+    Forces IPv4 resolution to avoid '[Errno 101] Network is unreachable'
+    in cloud / Docker environments with broken IPv6 routing.
     """
     def _create_socket(self, timeout=None):
         try:
@@ -45,43 +64,76 @@ class RobustIMAP4_SSL(imaplib.IMAP4_SSL):
         return super()._create_socket(timeout)
 
 
-# -- Shared state --------------------------------------------------------------
-_state = {
-    "running": False,
-    "last_check": None,
-    "emails_scanned": 0,
-    "active_accounts": 0,
-    "recent": [],          # newest first, max 20 entries (each tagged with user_id)
-    "errors": {},          # {user_id: "error message"}
-}
-_stop_event = threading.Event()
-_thread = None
-_lock = threading.Lock()
+# ── Per-user state ────────────────────────────────────────────────────────────
+
+_lock         = threading.Lock()
+_user_threads = {}      # {user_id: threading.Thread}
+_user_stop    = {}      # {user_id: threading.Event}
+_user_state   = {}      # {user_id: dict}
 
 
-def get_status(user_id=None) -> dict:
+def _default_state() -> dict:
+    return {
+        "running":        False,
+        "last_check":     None,
+        "emails_scanned": 0,
+        "recent":         [],
+        "last_error":     None,
+    }
+
+
+def _ensure_state(user_id: int):
+    """Initialise state for user_id if it doesn't exist yet."""
+    if user_id not in _user_state:
+        _user_state[user_id] = _default_state()
+
+
+# ── Public status API ─────────────────────────────────────────────────────────
+
+def get_status(user_id: int = None) -> dict:
     """
-    Thread-safe snapshot of monitoring state.
-    If user_id is given, only that user's feed and error are returned.
+    Thread-safe snapshot.
+    • user_id given → returns that user's state dict.
+    • user_id=None  → returns global summary (admin use).
     """
     with _lock:
-        snap = dict(_state)
-        errors = _state["errors"]
-        snap["recent"] = [
-            e for e in _state["recent"]
-            if user_id is None or e.get("user_id") == user_id
-        ]
         if user_id is not None:
-            snap["last_error"] = errors.get(user_id)
-        else:
-            snap["last_error"] = next(iter(errors.values()), None)
-        snap.pop("errors", None)
-        return snap
+            _ensure_state(user_id)
+            return dict(_user_state[user_id])
+
+        # Global summary
+        all_running   = [uid for uid, s in _user_state.items() if s["running"]]
+        total_scanned = sum(s["emails_scanned"] for s in _user_state.values())
+        return {
+            "running":         len(all_running) > 0,
+            "active_accounts": len(all_running),
+            "emails_scanned":  total_scanned,
+            "last_check":      max(
+                (s["last_check"] for s in _user_state.values() if s["last_check"]),
+                default=None,
+            ),
+            "last_error":      next(
+                (s["last_error"] for s in _user_state.values() if s["last_error"]),
+                None,
+            ),
+            "recent": sorted(
+                [e for s in _user_state.values() for e in s["recent"]],
+                key=lambda e: e.get("time", ""),
+                reverse=True,
+            )[:20],
+        }
 
 
-# -- Login test (used by Settings before saving) -------------------------------
+def get_all_user_statuses() -> dict:
+    """Return {user_id: state_dict} for all known users (admin dashboard)."""
+    with _lock:
+        return {uid: dict(s) for uid, s in _user_state.items()}
+
+
+# ── IMAP helpers ──────────────────────────────────────────────────────────────
+
 def test_login(host: str, port, email: str, password: str):
-    """Try a real IMAP login. Returns (ok: bool, error_message: str | None)."""
+    """Validate credentials with a real IMAP connection. Returns (ok, error_msg)."""
     try:
         conn = RobustIMAP4_SSL(host, int(port), timeout=15)
         try:
@@ -102,13 +154,11 @@ def test_login(host: str, port, email: str, password: str):
         if "101" in err_str or "unreachable" in err_str.lower():
             return False, (
                 f"Could not reach mail server ({host}:{port}). "
-                "Network is unreachable. If deploying to cloud hosting (e.g. Render/Vercel/Railway), "
-                "ensure outbound TCP port 993 is permitted by your host."
+                "Network is unreachable. Ensure outbound TCP port 993 is permitted by your host."
             )
         return False, f"Could not reach the mail server: {e}"
 
 
-# -- Per-account IMAP helpers --------------------------------------------------
 def _connect_imap(host: str, port: int, email: str, password: str):
     conn = RobustIMAP4_SSL(host, port, timeout=30)
     conn.login(email, password)
@@ -116,7 +166,7 @@ def _connect_imap(host: str, port: int, email: str, password: str):
     return conn
 
 
-def _fetch_unseen_raw_emails(conn):
+def _fetch_unseen_raw_emails(conn) -> list[bytes]:
     status, data = conn.search(None, "UNSEEN")
     if status != "OK" or not data or not data[0]:
         return []
@@ -128,39 +178,65 @@ def _fetch_unseen_raw_emails(conn):
     return raw_emails
 
 
-def _set_error(user_id, message):
+# ── Per-user poll loop ────────────────────────────────────────────────────────
+
+def _user_poll_loop(user_id: int, on_new_email, interval: int):
+    """
+    Background thread for ONE user.
+    Runs until the user's stop event is set or the user deactivates IMAP.
+    """
+    from modules import database
+
+    stop_event = _user_stop.get(user_id)
+    if stop_event is None:
+        return
+
+    while not stop_event.is_set():
+        try:
+            cred = database.get_imap_credentials(user_id)
+            if not cred or not cred.get("is_active"):
+                # User deactivated — stop naturally
+                break
+
+            _poll_one_account(cred, on_new_email, user_id)
+
+        except Exception as e:
+            _set_error(user_id, f"Poll loop error: {e}")
+            traceback.print_exc()
+
+        stop_event.wait(interval)
+
+    # Mark as stopped when thread exits
     with _lock:
-        _state["errors"][user_id] = message
+        if user_id in _user_state:
+            _user_state[user_id]["running"] = False
 
 
-def _process_account(cred: dict, on_new_email, interval_seconds: int):
-    """
-    Poll one user's inbox. All errors are caught and reported per-account
-    so a single bad credential never kills the entire monitoring loop.
-    """
-    from modules import database  # local import avoids circular deps at module load
+def _poll_one_account(cred: dict, on_new_email, user_id: int):
+    """Poll a single IMAP account and process any unseen emails."""
+    from modules import database
 
-    user_id = cred["user_id"]
-    host = cred["imap_host"]
-    port = int(cred["imap_port"])
+    host  = cred["imap_host"]
+    port  = int(cred["imap_port"])
     email = cred["imap_email"]
 
-    # Clear any old error for this user; a new one is set below if it fails again
+    # Clear previous error
     with _lock:
-        _state["errors"].pop(user_id, None)
+        _ensure_state(user_id)
+        _user_state[user_id]["last_error"] = None
+        _user_state[user_id]["last_check"]  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     try:
         password = database.decrypt_password(cred["encrypted_pass"])
     except Exception as e:
-        _set_error(user_id, f"Cannot decrypt IMAP password - {e}. "
-                            f"Re-save your IMAP settings.")
+        _set_error(user_id, f"Cannot decrypt IMAP password — {e}. Re-save your IMAP settings.")
         return
 
     try:
-        conn = _connect_imap(host, port, email, password)
-        raw_emails = _fetch_unseen_raw_emails(conn)
+        imap_conn = _connect_imap(host, port, email, password)
+        raw_emails = _fetch_unseen_raw_emails(imap_conn)
         try:
-            conn.logout()
+            imap_conn.logout()
         except Exception:
             pass
 
@@ -168,137 +244,216 @@ def _process_account(cred: dict, on_new_email, interval_seconds: int):
             try:
                 on_new_email(raw_bytes, user_id)
                 with _lock:
-                    _state["emails_scanned"] += 1
+                    _user_state[user_id]["emails_scanned"] += 1
             except Exception as e:
-                _set_error(user_id, f"Failed to process email - {e}")
+                _set_error(user_id, f"Failed to process email — {e}")
 
     except imaplib.IMAP4.error as e:
-        _set_error(user_id, f"IMAP auth/connection failed - {e}. "
-                            f"Check your App Password in Settings.")
+        _set_error(user_id, f"IMAP auth failed — {e}. Check your App Password in Settings.")
     except Exception as e:
-        _set_error(user_id, f"Unexpected error - {e}")
+        _set_error(user_id, f"Unexpected error — {e}")
         traceback.print_exc()
 
 
-# -- Main poll loop ------------------------------------------------------------
-def _poll_loop(on_new_email, interval_seconds: int):
-    """Runs in a background daemon thread until stop_monitoring() is called."""
+def _set_error(user_id: int, message: str):
+    with _lock:
+        _ensure_state(user_id)
+        _user_state[user_id]["last_error"] = message
+
+
+# ── Watchdog ──────────────────────────────────────────────────────────────────
+
+_watchdog_thread = None
+_watchdog_stop   = threading.Event()
+_on_new_email_ref = None   # stored so watchdog can restart dead threads
+
+
+def _watchdog_loop():
+    """Restarts any per-user thread that has silently died."""
     from modules import database
 
-    while not _stop_event.is_set():
+    while not _watchdog_stop.is_set():
+        _watchdog_stop.wait(60)   # check every 60 s
+        if _watchdog_stop.is_set():
+            break
+        if _on_new_email_ref is None:
+            continue
         try:
-            active_creds = database.get_all_active_imap_credentials()
             with _lock:
-                _state["active_accounts"] = len(active_creds)
-                _state["last_check"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            for cred in active_creds:
-                if _stop_event.is_set():
-                    break
-                _process_account(cred, on_new_email, interval_seconds)
-
-        except Exception as e:
-            _set_error("poll", f"Poll loop error: {e}")
+                dead_users = [
+                    uid for uid, t in _user_threads.items()
+                    if _user_state.get(uid, {}).get("running") and (t is None or not t.is_alive())
+                ]
+            for uid in dead_users:
+                _restart_user_thread(uid, _on_new_email_ref)
+        except Exception:
             traceback.print_exc()
 
-        _stop_event.wait(interval_seconds)
+
+def _start_watchdog(on_new_email):
+    global _watchdog_thread, _on_new_email_ref
+    _on_new_email_ref = on_new_email
+    if _watchdog_thread is None or not _watchdog_thread.is_alive():
+        _watchdog_stop.clear()
+        _watchdog_thread = threading.Thread(target=_watchdog_loop, daemon=True, name="monitor-watchdog")
+        _watchdog_thread.start()
 
 
-# -- Multi-worker Process Lock Guard -----------------------------------------
-_monitor_socket = None
-
-def _acquire_worker_lock() -> bool:
-    """
-    In multi-worker environments (e.g. Gunicorn -w 4), ensures background thread runs cleanly.
-    Uses socket reuse flags and safe fallback to guarantee thread startup across OS environments.
-    """
-    global _monitor_socket
-    if _monitor_socket is not None:
-        return True
-    import socket
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("127.0.0.1", 47829))
-        _monitor_socket = s
-        return True
-    except Exception:
-        # Fallback gracefully so monitoring runs in single-worker / desktop environments
-        return True
-
-
-# -- Public API ----------------------------------------------------------------
-def start_monitoring(on_new_email, interval_seconds: int = None) -> bool:
-    """
-    Start the background monitoring thread.
-    on_new_email(raw_bytes: bytes, user_id: int) is called for each new email.
-    Returns False if already running and active.
-    """
-    global _thread
+def _restart_user_thread(user_id: int, on_new_email):
+    """Restart a dead thread for user_id (called by watchdog, already under lock context)."""
+    interval = config.POLL_INTERVAL_SECONDS
+    stop_evt = threading.Event()
+    _user_stop[user_id] = stop_evt
+    t = threading.Thread(
+        target=_user_poll_loop,
+        args=(user_id, on_new_email, interval),
+        daemon=True,
+        name=f"monitor-user-{user_id}",
+    )
+    t.start()
     with _lock:
-        if _state["running"] and _thread is not None and _thread.is_alive():
+        _user_threads[user_id] = t
+        _ensure_state(user_id)
+        _user_state[user_id]["running"] = True
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def start_monitoring_user(user_id: int, on_new_email, interval: int = None) -> bool:
+    """
+    Start (or restart) the background thread for one user.
+    Returns True if a new thread was started, False if already running fine.
+    """
+    interval = interval or config.POLL_INTERVAL_SECONDS
+
+    with _lock:
+        existing_thread = _user_threads.get(user_id)
+        if existing_thread is not None and existing_thread.is_alive():
+            # Already running — nothing to do
             return False
 
-    _acquire_worker_lock()
+    # Stop any stale stop-event
+    old_stop = _user_stop.get(user_id)
+    if old_stop:
+        old_stop.set()
 
-    interval = interval_seconds or config.POLL_INTERVAL_SECONDS
-    _stop_event.clear()
-    _thread = threading.Thread(
-        target=_poll_loop,
-        args=(on_new_email, interval),
+    stop_evt = threading.Event()
+    _user_stop[user_id] = stop_evt
+
+    t = threading.Thread(
+        target=_user_poll_loop,
+        args=(user_id, on_new_email, interval),
         daemon=True,
+        name=f"monitor-user-{user_id}",
     )
-    _thread.start()
+    t.start()
+
     with _lock:
-        _state["running"] = True
+        _user_threads[user_id] = t
+        _ensure_state(user_id)
+        _user_state[user_id]["running"] = True
+        _user_state[user_id]["last_error"] = None
+
+    _start_watchdog(on_new_email)
     return True
 
 
-def poll_now(on_new_email) -> bool:
-    """Trigger an immediate inbox check in a background thread."""
+def stop_monitoring_user(user_id: int) -> bool:
+    """
+    Stop only ONE user's monitoring thread. Other users are unaffected.
+    Returns True if a thread was stopped, False if wasn't running.
+    """
+    stop_evt = _user_stop.get(user_id)
+    if stop_evt:
+        stop_evt.set()
+
+    with _lock:
+        _ensure_state(user_id)
+        was_running = _user_state[user_id]["running"]
+        _user_state[user_id]["running"] = False
+
+    return was_running
+
+
+def start_monitoring(on_new_email, interval: int = None) -> bool:
+    """
+    Start threads for ALL users with active IMAP credentials.
+    Called at app startup and after bulk enable operations.
+    Returns True if at least one thread was started.
+    """
+    from modules import database
+    interval = interval or config.POLL_INTERVAL_SECONDS
+
+    active_creds = database.get_all_active_imap_credentials()
+    started_any = False
+    for cred in active_creds:
+        uid = cred["user_id"]
+        started = start_monitoring_user(uid, on_new_email, interval)
+        if started:
+            started_any = True
+
+    _start_watchdog(on_new_email)
+    return started_any
+
+
+def stop_monitoring() -> bool:
+    """
+    Stop ALL monitoring threads (admin action / server shutdown).
+    Returns True always.
+    """
+    global _watchdog_thread
+
+    # Stop watchdog first
+    _watchdog_stop.set()
+
+    with _lock:
+        user_ids = list(_user_stop.keys())
+
+    for uid in user_ids:
+        stop_monitoring_user(uid)
+
+    return True
+
+
+def poll_now(on_new_email, user_id: int = None) -> bool:
+    """
+    Trigger an immediate one-shot poll in a background thread.
+    user_id=None → poll all active accounts.
+    """
     t = threading.Thread(
-        target=_poll_loop_once,
-        args=(on_new_email,),
+        target=_poll_now_worker,
+        args=(on_new_email, user_id),
         daemon=True,
     )
     t.start()
     return True
 
 
-def _poll_loop_once(on_new_email):
+def _poll_now_worker(on_new_email, user_id: int = None):
     from modules import database
     try:
-        active_creds = database.get_all_active_imap_credentials()
-        with _lock:
-            _state["active_accounts"] = len(active_creds)
-            _state["last_check"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        for cred in active_creds:
-            _process_account(cred, on_new_email, config.POLL_INTERVAL_SECONDS)
+        if user_id is not None:
+            cred = database.get_imap_credentials(user_id)
+            if cred:
+                _poll_one_account(cred, on_new_email, user_id)
+        else:
+            for cred in database.get_all_active_imap_credentials():
+                _poll_one_account(cred, on_new_email, cred["user_id"])
     except Exception as e:
-        _set_error("poll", f"Poll error: {e}")
-
-
-def stop_monitoring() -> bool:
-    """Stop the background thread gracefully."""
-    with _lock:
-        if not _state["running"]:
-            return False
-    _stop_event.set()
-    with _lock:
-        _state["running"] = False
-    return True
+        traceback.print_exc()
 
 
 def record_scan(subject: str, sender: str, verdict: str, scan_id: int, user_id: int = None):
-    """Called by app.py after each auto-scan to update the live dashboard feed."""
+    """Called by app.py after each auto-scan to update the live feed."""
     with _lock:
-        _state["recent"].insert(0, {
-            "time":    datetime.now().strftime("%H:%M:%S"),
-            "subject": subject or "(no subject)",
-            "from":    sender or "(unknown sender)",
-            "verdict": verdict,
-            "scan_id": scan_id,
-            "user_id": user_id,
-        })
-        _state["recent"] = _state["recent"][:20]
+        if user_id is not None:
+            _ensure_state(user_id)
+            _user_state[user_id]["recent"].insert(0, {
+                "time":    datetime.now().strftime("%H:%M:%S"),
+                "subject": subject or "(no subject)",
+                "from":    sender  or "(unknown sender)",
+                "verdict": verdict,
+                "scan_id": scan_id,
+                "user_id": user_id,
+            })
+            _user_state[user_id]["recent"] = _user_state[user_id]["recent"][:50]

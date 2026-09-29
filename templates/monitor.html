@@ -32,13 +32,23 @@
     </p>
   </div>
   <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    {% if not status.running %}
     <form action="{{ url_for('monitor_start') }}" method="post" style="display:inline;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-primary" id="start-monitor-btn"
-              {% if status.running or not imap_creds %}disabled aria-disabled="true"{% endif %}>
+              {% if not imap_creds %}disabled aria-disabled="true"{% endif %}>
         ▶ Start Monitoring
       </button>
     </form>
+    {% else %}
+    <form action="{{ url_for('monitor_restart') }}" method="post" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" id="restart-monitor-btn"
+              style="background:linear-gradient(135deg,#0ea5e9,#6366f1);">
+        🔄 Restart
+      </button>
+    </form>
+    {% endif %}
     <form action="{{ url_for('monitor_poll_now') }}" method="post" style="display:inline;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-outline" id="poll-now-btn" style="border-color:#6366f1; color:#818cf8;"
@@ -75,8 +85,12 @@
           <p style="font-size:24px; font-weight:800; color:#fff; margin:0; font-family:'JetBrains Mono',monospace;" id="scanned-count">{{ status.emails_scanned }}</p>
         </div>
         <div>
-          <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 3px; font-weight:600;">Active Accounts</p>
-          <p style="font-size:24px; font-weight:800; color:#fff; margin:0; font-family:'JetBrains Mono',monospace;" id="active-accounts">{{ status.active_accounts }}</p>
+          <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 3px; font-weight:600;">Your Monitor</p>
+          <p style="font-size:15px; font-weight:700; margin:0; font-family:'JetBrains Mono',monospace;"
+             id="my-account-status"
+             style="color:{{ '#4ade80' if status.running else '#64748b' }};">
+            {{ '● Active' if status.running else '◉ Idle' }}
+          </p>
         </div>
       </div>
     </div>
@@ -84,8 +98,10 @@
       <span class="verdict-badge {% if status.running %}safe{% else %}suspicious{% endif %}" id="status-badge">
         {% if status.running %}● RUNNING{% else %}◉ STOPPED{% endif %}
       </span>
+      <p style="font-size:11px; color:#475569; margin:8px 0 0; text-align:right;">Auto-refresh every 5s</p>
     </div>
   </div>
+  <!-- Error banner (per-user) -->
   {% if status.last_error %}
   <div id="error-container" style="margin-top:16px; padding:12px 16px; background:rgba(220,38,38,0.12); border:1px solid rgba(220,38,38,0.25); border-radius:8px;">
     <p style="margin:0; color:#fca5a5; font-size:13px;" id="last-error">⚠️ {{ status.last_error }}</p>
@@ -112,8 +128,10 @@
     <span class="metric-label" style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); font-weight:600;">Monitor Status</span>
   </div>
   <div class="metric-card" style="background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:20px; text-align:center;">
-    <span class="metric-number" id="metric-accounts" style="font-size:28px; font-weight:800; font-family:'JetBrains Mono',monospace; display:block; color:var(--text-secondary);">{{ status.active_accounts }}</span>
-    <span class="metric-label" style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); font-weight:600;">Active Accounts</span>
+    <span class="metric-number" id="metric-thread" style="font-size:28px; font-weight:800; font-family:'JetBrains Mono',monospace; display:block; color:var(--text-secondary);">
+      {{ '✓' if status.running else '—' }}
+    </span>
+    <span class="metric-label" style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); font-weight:600;">Thread Health</span>
   </div>
 </div>
 
@@ -123,7 +141,7 @@
     <span>📬</span>
     <div>
       <p class="card-title">Recently Auto-Scanned Emails</p>
-      <p class="card-subtitle">Updates every 5 seconds while monitoring is active</p>
+      <p class="card-subtitle">Your inbox — updates every 5 seconds while monitoring is active</p>
     </div>
   </div>
   <div style="overflow-x:auto;">
@@ -183,6 +201,7 @@ const verdictIcon  = {Safe: "✅", Suspicious: "⚠️", Dangerous: "🚨"};
 async function refreshStatus() {
   try {
     const res  = await fetch("{{ url_for('monitor_status') }}");
+    if (!res.ok) return;
     const data = await res.json();
 
     // Live dot
@@ -199,7 +218,21 @@ async function refreshStatus() {
       badge.className   = "verdict-badge " + (data.running ? "safe" : "suspicious");
     }
 
-    // Dynamic error message box
+    // My account status
+    const acc = document.getElementById("my-account-status");
+    if (acc) {
+      acc.textContent = data.running ? "● Active" : "◉ Idle";
+      acc.style.color = data.running ? "#4ade80" : "#64748b";
+    }
+
+    // Thread health
+    const th = document.getElementById("metric-thread");
+    if (th) {
+      th.textContent = data.running ? "✓" : "—";
+      th.style.color = data.running ? "var(--safe)" : "var(--text-muted)";
+    }
+
+    // Error box
     const errBox = document.getElementById("error-container");
     const errTxt = document.getElementById("last-error");
     if (errBox && errTxt) {
@@ -217,12 +250,7 @@ async function refreshStatus() {
 
     ["scanned-count", "metric-scanned"].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.textContent = data.emails_scanned;
-    });
-
-    ["active-accounts", "metric-accounts"].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = data.active_accounts || 0;
+      if (el) el.textContent = data.emails_scanned ?? 0;
     });
 
     const ms = document.getElementById("metric-status");
@@ -231,9 +259,13 @@ async function refreshStatus() {
       ms.style.color = data.running ? "var(--safe)" : "var(--text-muted)";
     }
 
-    // Recent table
+    // Recent table — only update when there's data to show
     const tbody = document.getElementById("recent-body");
     if (tbody && data.recent && data.recent.length) {
+      // Remove empty-state row if present
+      const emptyRow = document.getElementById("empty-monitor-row");
+      if (emptyRow) emptyRow.remove();
+
       tbody.innerHTML = data.recent.map(e => `
         <tr>
           <td><span style="font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;">${e.time}</span></td>
@@ -244,10 +276,13 @@ async function refreshStatus() {
         </tr>`).join("");
     }
   } catch (e) {
-    // Silent retry
+    // Silent retry on network errors
   }
 }
 
+// Poll every 5 seconds
 setInterval(refreshStatus, 5000);
+// Initial refresh after 1 s (so page feels responsive immediately)
+setTimeout(refreshStatus, 1000);
 </script>
 {% endblock %}

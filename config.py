@@ -43,9 +43,14 @@ VT_API_KEY = os.getenv("VT_API_KEY", "")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 REPORT_DIR = os.path.join(BASE_DIR, "reports")
-MODEL_DIR = os.path.join(BASE_DIR, "model")
-DB_PATH = os.path.join(BASE_DIR, "scans.db")
+MODEL_DIR  = os.path.join(BASE_DIR, "model")
+DB_PATH    = os.path.join(BASE_DIR, "scans.db")
+
+# Full PostgreSQL connection string, e.g.:
+#   postgresql://user:password@localhost:5432/email_threat_db
+# Leave blank to use SQLite (local development).
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+USE_POSTGRES = bool(DATABASE_URL)  # convenience flag used by database.py
 
 
 # ===================== HEADER ANALYSIS =====================

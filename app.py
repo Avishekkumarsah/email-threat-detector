@@ -4,7 +4,7 @@ app.py
 Flask routes for the multi-tenant Email Threat Detector SaaS platform.
 
 All analysis routes are protected with @login_required so each user only
-ever sees their own scans. IMAP credentials are managed via /settings.
+ever sees their own scans.  IMAP credentials are managed via /settings.
 """
 
 import os
@@ -47,22 +47,17 @@ app.config["MAIL_DEFAULT_SENDER"] = config.MAIL_DEFAULT_SENDER
 csrf = CSRFProtect(app)
 mail = Mail(app)
 
-os.makedirs(config.UPLOAD_DIR,   exist_ok=True)
-os.makedirs(config.REPORT_DIR,   exist_ok=True)
+os.makedirs(config.UPLOAD_DIR, exist_ok=True)
+os.makedirs(config.REPORT_DIR, exist_ok=True)
 database.init_db()
 database.ensure_super_admin()   # always create/repair the fixed super admin
 
-# Auto-start inbox monitoring if active IMAP accounts exist
-try:
-    if database.get_all_active_imap_credentials():
-        inbox_monitor.start_monitoring(_process_incoming_email)
-except Exception:
-    pass
+# (Monitoring auto-start happens AFTER _process_incoming_email is defined below)
 
 # -- Flask-Login ---------------------------------------------------------------
 login_manager = LoginManager(app)
-login_manager.login_view     = "login"
-login_manager.login_message  = "Please log in to access this page."
+login_manager.login_view    = "login"
+login_manager.login_message = "Please log in to access this page."
 login_manager.login_message_category = "warning"
 
 
@@ -165,6 +160,14 @@ def _process_incoming_email(raw_bytes: bytes, user_id: int):
     )
 
 
+# Restart monitoring with the real callback now that it is defined
+try:
+    if database.get_all_active_imap_credentials():
+        inbox_monitor.start_monitoring(_process_incoming_email)
+except Exception:
+    pass
+
+
 # -- Auth routes ---------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -173,12 +176,15 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        user = verify_user(username, password)
-        if user:
-            login_user(user, remember=request.form.get("remember") == "on")
+        result   = verify_user(username, password)
+        if result == "suspended":
+            flash("Your account has been suspended. Please contact the administrator.", "danger")
+        elif result:
+            login_user(result, remember=request.form.get("remember") == "on")
             next_page = request.args.get("next")
             return redirect(next_page or url_for("index"))
-        flash("Invalid username or password.", "danger")
+        else:
+            flash("Invalid username or password.", "danger")
     return render_template("login.html")
 
 
@@ -188,7 +194,7 @@ def register():
         return redirect(url_for("index"))
     if request.method == "POST":
         username = request.form.get("username", "").strip()
-        email    = request.form.get("email", "").strip().lower()
+        email    = request.form.get("email",    "").strip().lower()
         password = request.form.get("password", "")
         confirm  = request.form.get("confirm_password", "")
 
@@ -230,32 +236,34 @@ def forgot_password():
             flash("Please enter your registered email address.", "danger")
             return render_template("forgot_password.html")
 
-        # Find user
-        conn = database._connect()
-        user_row = conn.execute("SELECT id, username, email FROM users WHERE email = ?", (email,)).fetchone()
-        conn.close()
+        conn     = database._connect()
+        cur      = database._cursor(conn)
+        ph       = database._ph()
+        cur.execute(f"SELECT id, username, email FROM users WHERE LOWER(email) = LOWER({ph})", (email,))
+        user_row = database._fetchrow(cur)
+        database._close(conn)
 
         if user_row:
-            token = secrets.token_urlsafe(32)
+            token      = secrets.token_urlsafe(32)
             expires_at = (datetime.now() + timedelta(seconds=config.PASSWORD_RESET_EXPIRY)).isoformat()
             database.create_password_reset_token(user_row["id"], token, expires_at)
 
             reset_url = url_for("reset_password", token=token, _external=True)
-
             try:
                 msg = Message(
                     subject="Password Reset Request - Email Threat Detector",
                     recipients=[email],
-                    body=f"Hello {user_row['username']},\n\n"
-                         f"We received a request to reset your password for Email Threat Detector.\n\n"
-                         f"To reset your password, click the following link (valid for 1 hour):\n"
-                         f"{reset_url}\n\n"
-                         f"If you did not request this, please ignore this email.\n\n"
-                         f"— Email Threat Detector Team"
+                    body=(
+                        f"Hello {user_row['username']},\n\n"
+                        "We received a request to reset your password.\n\n"
+                        f"Reset link (valid for 1 hour):\n{reset_url}\n\n"
+                        "If you did not request this, please ignore this email.\n\n"
+                        "— Email Threat Detector Team"
+                    ),
                 )
                 mail.send(msg)
                 flash(f"Password reset instructions have been sent to {email}.", "success")
-            except Exception as ex:
+            except Exception:
                 flash(f"Reset link generated! Direct link (dev mode): {reset_url}", "info")
         else:
             flash(f"If an account exists for {email}, password reset instructions have been sent.", "success")
@@ -321,7 +329,9 @@ def settings():
                 new_state = not bool(imap_creds["is_active"])
                 database.set_imap_active(current_user.id, new_state)
                 if new_state:
-                    inbox_monitor.start_monitoring(_process_incoming_email)
+                    inbox_monitor.start_monitoring_user(current_user.id, _process_incoming_email)
+                else:
+                    inbox_monitor.stop_monitoring_user(current_user.id)
                 flash(
                     "Live monitoring enabled." if new_state else "Live monitoring disabled.",
                     "success",
@@ -330,11 +340,10 @@ def settings():
                 flash("Configure your IMAP settings before enabling monitoring.", "warning")
             return redirect(url_for("settings"))
 
-        # ---- Save IMAP credentials (validated with a real login test) ----
+        # ---- Save IMAP credentials ----
         host     = request.form.get("imap_host", "").strip()
         port_str = request.form.get("imap_port", "993").strip()
         email    = request.form.get("imap_email", "").strip()
-        # Remove ALL whitespace: Google shows app passwords as "abcd efgh ijkl mnop"
         password = "".join(request.form.get("imap_pass", "").split())
 
         try:
@@ -348,7 +357,6 @@ def settings():
 
         if not password:
             if imap_creds:
-                # Blank password on update = keep the existing one
                 try:
                     password = database.decrypt_password(imap_creds["encrypted_pass"])
                 except Exception:
@@ -363,11 +371,9 @@ def settings():
             flash(f"Not saved. {err}", "danger")
             return redirect(url_for("settings"))
 
-        database.save_imap_credentials(
-            current_user.id, host, port, email, password, is_active=True,
-        )
-        inbox_monitor.start_monitoring(_process_incoming_email)
-        flash("Connected successfully. IMAP settings saved.", "success")
+        database.save_imap_credentials(current_user.id, host, port, email, password, is_active=True)
+        inbox_monitor.start_monitoring_user(current_user.id, _process_incoming_email)
+        flash("Connected successfully. IMAP settings saved and live monitoring started.", "success")
         return redirect(url_for("settings"))
 
     return render_template("settings.html", imap_creds=imap_creds)
@@ -431,10 +437,10 @@ def result(scan_id):
     if not scan_row:
         flash("Scan not found.", "danger")
         return redirect(url_for("history"))
-    # Enforce ownership
     if scan_row.get("user_id") is not None and scan_row["user_id"] != current_user.id:
-        flash("You do not have permission to view that scan.", "danger")
-        return redirect(url_for("history"))
+        if not current_user.is_admin:
+            flash("You do not have permission to view that scan.", "danger")
+            return redirect(url_for("history"))
     return render_template("result.html", scan=scan_row, r=scan_row["full_result"])
 
 
@@ -468,8 +474,9 @@ def download_report(scan_id):
         flash("Scan not found.", "danger")
         return redirect(url_for("history"))
     if scan_row.get("user_id") is not None and scan_row["user_id"] != current_user.id:
-        flash("Permission denied.", "danger")
-        return redirect(url_for("history"))
+        if not current_user.is_admin:
+            flash("Permission denied.", "danger")
+            return redirect(url_for("history"))
     try:
         pdf_path = report.generate_report(scan_id)
         return send_file(pdf_path, as_attachment=True)
@@ -483,9 +490,10 @@ def download_report(scan_id):
 @login_required
 def monitor():
     imap_creds = database.get_imap_credentials(current_user.id)
+    status     = inbox_monitor.get_status(current_user.id)
     return render_template(
         "monitor.html",
-        status=inbox_monitor.get_status(current_user.id),
+        status=status,
         config_poll_interval=config.POLL_INTERVAL_SECONDS,
         imap_creds=imap_creds,
     )
@@ -498,9 +506,9 @@ def monitor_start():
     if not imap_creds:
         flash("Configure your IMAP settings in Settings before starting monitoring.", "warning")
         return redirect(url_for("settings"))
-    if not imap_creds["is_active"]:
-        database.set_imap_active(current_user.id, True)
-    started = inbox_monitor.start_monitoring(_process_incoming_email)
+
+    database.set_imap_active(current_user.id, True)
+    started = inbox_monitor.start_monitoring_user(current_user.id, _process_incoming_email)
     flash(
         "Live monitoring started." if started else "Monitoring is already running.",
         "success",
@@ -511,8 +519,26 @@ def monitor_start():
 @app.route("/monitor/stop", methods=["POST"])
 @login_required
 def monitor_stop():
-    inbox_monitor.stop_monitoring()
+    database.set_imap_active(current_user.id, False)
+    inbox_monitor.stop_monitoring_user(current_user.id)
     flash("Live monitoring stopped.", "success")
+    return redirect(url_for("monitor"))
+
+
+@app.route("/monitor/restart", methods=["POST"])
+@login_required
+def monitor_restart():
+    """Force-restart the monitor thread even if it thinks it's running."""
+    imap_creds = database.get_imap_credentials(current_user.id)
+    if not imap_creds:
+        flash("Configure your IMAP settings first.", "warning")
+        return redirect(url_for("settings"))
+    # Stop first (ignores running state), then start fresh
+    inbox_monitor.stop_monitoring_user(current_user.id)
+    import time; time.sleep(0.3)   # brief pause to let thread exit
+    database.set_imap_active(current_user.id, True)
+    inbox_monitor.start_monitoring_user(current_user.id, _process_incoming_email)
+    flash("Live monitoring restarted.", "success")
     return redirect(url_for("monitor"))
 
 
@@ -521,12 +547,11 @@ def monitor_stop():
 def monitor_poll_now():
     imap_creds = database.get_imap_credentials(current_user.id)
     if not imap_creds:
-        flash("Configure your IMAP settings in Settings before triggering a scan.", "warning")
+        flash("Configure your IMAP settings before triggering a scan.", "warning")
         return redirect(url_for("settings"))
-    if not imap_creds["is_active"]:
-        database.set_imap_active(current_user.id, True)
-    inbox_monitor.start_monitoring(_process_incoming_email)
-    inbox_monitor.poll_now(_process_incoming_email)
+    database.set_imap_active(current_user.id, True)
+    inbox_monitor.start_monitoring_user(current_user.id, _process_incoming_email)
+    inbox_monitor.poll_now(_process_incoming_email, user_id=current_user.id)
     flash("Triggered inbox scan check.", "success")
     return redirect(url_for("monitor"))
 
@@ -534,7 +559,11 @@ def monitor_poll_now():
 @app.route("/monitor/status")
 @login_required
 def monitor_status():
-    return jsonify(inbox_monitor.get_status(current_user.id))
+    """JSON endpoint polled by monitor.html every 5 s."""
+    status = inbox_monitor.get_status(current_user.id)
+    # Ensure legacy keys expected by the frontend template
+    status.setdefault("active_accounts", 1 if status.get("running") else 0)
+    return jsonify(status)
 
 
 # -- Admin routes --------------------------------------------------------------
@@ -545,14 +574,17 @@ def admin():
         flash("Access denied: Admin privileges required.", "danger")
         return redirect(url_for("index"))
 
-    users = database.get_all_users_with_stats()
-    stats = database.get_admin_dashboard_stats()
+    users        = database.get_all_users_with_stats()
+    stats        = database.get_admin_dashboard_stats()
     recent_scans = database.get_all_scans()[:15]
+    all_statuses = inbox_monitor.get_all_user_statuses()   # {user_id: state_dict}
+
     return render_template(
         "admin.html",
         users=users,
         stats=stats,
         recent_scans=recent_scans,
+        all_statuses=all_statuses,
         super_admin_email=config.SUPER_ADMIN_EMAIL.lower(),
     )
 
@@ -561,21 +593,75 @@ def admin():
 @login_required
 def admin_toggle_role(user_id):
     if not current_user.is_admin:
-        flash("Access denied: Admin privileges required.", "danger")
+        flash("Access denied.", "danger")
         return redirect(url_for("index"))
-
     if user_id == current_user.id:
         flash("You cannot modify your own admin status.", "warning")
         return redirect(url_for("admin"))
-
-    # Protect the hardcoded super admin from ever being demoted
     if database.is_super_admin(user_id):
         flash("The Super Admin account is protected and cannot be modified.", "warning")
         return redirect(url_for("admin"))
-
     database.toggle_user_admin(user_id)
-    flash("User status updated.", "success")
+    flash("User role updated.", "success")
     return redirect(url_for("admin"))
+
+
+@app.route("/admin/user/<int:user_id>/suspend", methods=["POST"])
+@login_required
+def admin_suspend_user(user_id):
+    if not current_user.is_admin:
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+    if user_id == current_user.id:
+        flash("You cannot suspend yourself.", "warning")
+        return redirect(url_for("admin"))
+    if database.is_super_admin(user_id):
+        flash("The Super Admin account cannot be suspended.", "warning")
+        return redirect(url_for("admin"))
+    database.suspend_user(user_id)
+    inbox_monitor.stop_monitoring_user(user_id)   # stop their live monitor too
+    flash("User account has been suspended.", "success")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/user/<int:user_id>/activate", methods=["POST"])
+@login_required
+def admin_activate_user(user_id):
+    if not current_user.is_admin:
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+    database.activate_user(user_id)
+    flash("User account has been re-activated.", "success")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/user/<int:user_id>/delete", methods=["POST"])
+@login_required
+def admin_delete_user(user_id):
+    if not current_user.is_admin:
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+    if user_id == current_user.id:
+        flash("You cannot delete your own account.", "warning")
+        return redirect(url_for("admin"))
+    if database.is_super_admin(user_id):
+        flash("The Super Admin account cannot be deleted.", "warning")
+        return redirect(url_for("admin"))
+    inbox_monitor.stop_monitoring_user(user_id)
+    database.delete_user(user_id)
+    flash("User account permanently deleted.", "success")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/monitor-status")
+@login_required
+def admin_monitor_status():
+    """JSON — live monitoring status for every user (admin only)."""
+    if not current_user.is_admin:
+        return jsonify({"error": "Forbidden"}), 403
+    all_statuses = inbox_monitor.get_all_user_statuses()
+    # Convert integer keys to strings for JSON
+    return jsonify({str(k): v for k, v in all_statuses.items()})
 
 
 # -- Error handlers ------------------------------------------------------------
