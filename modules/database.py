@@ -748,8 +748,17 @@ def get_admin_dashboard_stats() -> dict:
     conn = _connect()
     try:
         cur = _cursor(conn)
+        # Total registered users (all-time, including suspended)
         cur.execute("SELECT COUNT(*) as cnt FROM users")
         total_users = (_fetchrow(cur) or {}).get("cnt", 0)
+
+        # Currently active (non-suspended) users
+        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE is_active = 1")
+        active_users = (_fetchrow(cur) or {}).get("cnt", 0)
+
+        # Suspended users
+        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE is_active = 0")
+        suspended_users = (_fetchrow(cur) or {}).get("cnt", 0)
 
         cur.execute("SELECT COUNT(*) as cnt FROM scans")
         total_scans = (_fetchrow(cur) or {}).get("cnt", 0)
@@ -761,7 +770,9 @@ def get_admin_dashboard_stats() -> dict:
         verdicts = {r["verdict"]: r["cnt"] for r in _fetchall(cur)}
 
         return {
-            "total_users":      total_users,
+            "total_users":      total_users,     # ALL registered (active + suspended)
+            "active_users":     active_users,    # Only non-suspended accounts
+            "suspended_users":  suspended_users, # Suspended accounts
             "total_scans":      total_scans,
             "active_monitors":  active_monitors,
             "safe_scans":       verdicts.get("Safe", 0),

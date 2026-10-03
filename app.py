@@ -676,4 +676,9 @@ def server_error(e):
 
 
 if __name__ == "__main__":
-    app.run(debug=False)
+    # Bind to 0.0.0.0 so the app is reachable from other computers,
+    # phones, and tablets on the same network (not just localhost).
+    host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
+    port = int(os.getenv("FLASK_RUN_PORT", "5000"))
+    debug = os.getenv("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
+    app.run(host=host, port=port, debug=debug)

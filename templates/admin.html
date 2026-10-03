@@ -2,6 +2,17 @@
 {% block title %}Admin Dashboard | Email Threat Detector{% endblock %}
 
 {% block content %}
+<style>
+  .user-mon-card { background: rgba(15,23,41,0.7); border: 1px solid rgba(100,116,139,0.2); border-radius: 12px; padding: 14px 16px; }
+  .user-mon-card.is-running { border-color: rgba(74,222,128,0.25); }
+  .user-mon-dot { width: 10px; height: 10px; border-radius: 50%; background: #475569; flex-shrink: 0; }
+  .user-mon-dot.is-running { background: #4ade80; }
+  .user-mon-label { font-size: 11px; color: #64748b; margin-left: auto; }
+  .user-mon-label.is-running { color: #4ade80; }
+  .tr-suspended { opacity: 0.6; }
+  .user-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #fff; background: linear-gradient(135deg,#6366f1,#8b5cf6); }
+  .user-avatar.is-suspended { background: linear-gradient(135deg,#64748b,#94a3b8); }
+</style>
 
 <!-- Page Header -->
 <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:28px;">
@@ -26,8 +37,9 @@
   <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.2); border-radius:16px; padding:22px; display:flex; align-items:center; gap:16px;">
     <div style="width:52px; height:52px; background:rgba(99,102,241,0.15); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:24px;">👥</div>
     <div>
-      <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 4px; font-weight:700;">Total Platform Users</p>
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 4px; font-weight:700;">Total Registered Users</p>
       <p style="font-size:26px; font-weight:800; color:#fff; margin:0; font-family:'JetBrains Mono',monospace;">{{ stats.total_users }}</p>
+      <p style="font-size:11px; color:#64748b; margin:2px 0 0;">{{ stats.active_users }} active &nbsp;·&nbsp; <span style="color:#f87171;">{{ stats.suspended_users }} suspended</span></p>
     </div>
   </div>
 
@@ -71,12 +83,13 @@
     {% for u in users %}
     {% set uid = u.id | string %}
     {% set us = all_statuses.get(u.id, {}) %}
-    <div id="user-monitor-{{ u.id }}" style="background:rgba(15,23,41,0.7); border:1px solid {{ 'rgba(74,222,128,0.25)' if us.get('running') else 'rgba(100,116,139,0.2)' }}; border-radius:12px; padding:14px 16px;">
+    {% set is_running = us.get('running') %}
+    <div id="user-monitor-{{ u.id }}" class="user-mon-card {{ 'is-running' if is_running else '' }}">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-        <div style="width:10px; height:10px; border-radius:50%; background:{{ '#4ade80' if us.get('running') else '#475569' }}; flex-shrink:0;"></div>
+        <div class="user-mon-dot {{ 'is-running' if is_running else '' }}"></div>
         <strong style="color:#e2e8f0; font-size:13px;">{{ u.username }}</strong>
-        <span style="font-size:11px; color:{{ '#4ade80' if us.get('running') else '#64748b' }}; margin-left:auto;">
-          {{ '● LIVE' if us.get('running') else '◉ OFF' }}
+        <span class="user-mon-label {{ 'is-running' if is_running else '' }}">
+          {{ '● LIVE' if is_running else '◉ OFF' }}
         </span>
       </div>
       <p style="font-size:11px; color:#64748b; margin:0 0 2px;">Emails auto-scanned: <strong style="color:#94a3b8;">{{ us.get('emails_scanned', 0) }}</strong></p>
@@ -95,10 +108,13 @@
 <div class="card" style="margin-bottom:32px;">
   <div class="card-header-inner">
     <span>👥</span>
-    <div>
-      <p class="card-title">Registered SaaS User Accounts</p>
-      <p class="card-subtitle">All users registered on the platform — manage roles, suspend, or delete accounts</p>
+    <div style="flex:1;">
+      <p class="card-title">All Registered Accounts &mdash; Every User, Past &amp; Present</p>
+      <p class="card-subtitle">Shows <strong style="color:#818cf8;">every account ever registered</strong> on the platform, including active and suspended users. Total: <strong style="color:#e2e8f0;">{{ users | length }}</strong></p>
     </div>
+    <span style="font-size:12px; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); color:#818cf8; padding:5px 14px; border-radius:20px; font-weight:700; white-space:nowrap;">
+      {{ users | length }} accounts
+    </span>
   </div>
   <div style="overflow-x:auto;">
     <table class="history-table" aria-label="Registered user accounts">
@@ -119,11 +135,11 @@
       <tbody>
         {% for u in users %}
         {% set is_sa = (u.email|lower == super_admin_email|lower) %}
-        <tr style="{{ 'opacity:0.6;' if not u.is_active else '' }}">
+        <tr class="{{ 'tr-suspended' if not u.is_active else '' }}">
           <td><span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-muted);">#{{ u.id }}</span></td>
           <td>
             <div style="display:flex; align-items:center; gap:10px;">
-              <div style="width:32px; height:32px; background:{{ 'linear-gradient(135deg,#64748b,#94a3b8)' if not u.is_active else 'linear-gradient(135deg,#6366f1,#8b5cf6)' }}; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:#fff;">
+              <div class="user-avatar {{ 'is-suspended' if not u.is_active else '' }}">
                 {{ u.username[0]|upper }}
               </div>
               <strong style="color:#e2e8f0; font-size:14px;">{{ u.username }}</strong>
