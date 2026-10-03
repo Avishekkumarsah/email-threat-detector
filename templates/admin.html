@@ -9,9 +9,63 @@
   .user-mon-dot.is-running { background: #4ade80; }
   .user-mon-label { font-size: 11px; color: #64748b; margin-left: auto; }
   .user-mon-label.is-running { color: #4ade80; }
-  .tr-suspended { opacity: 0.6; }
-  .user-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #fff; background: linear-gradient(135deg,#6366f1,#8b5cf6); }
+  .tr-suspended { opacity: 0.75; background: rgba(239, 68, 68, 0.04) !important; }
+  .user-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #fff; background: linear-gradient(135deg,#6366f1,#8b5cf6); flex-shrink: 0; }
   .user-avatar.is-suspended { background: linear-gradient(135deg,#64748b,#94a3b8); }
+
+  /* Admin Table Custom Styling */
+  .admin-table th, .admin-table td {
+    padding: 14px 18px !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+  }
+  .badge-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  .badge-pill.protected { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.35); color: #fbbf24; }
+  .badge-pill.active { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; }
+  .badge-pill.suspended { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.35); color: #f87171; }
+  .badge-pill.super-admin { background: rgba(99,102,241,0.18); border: 1px solid rgba(99,102,241,0.35); color: #818cf8; }
+  .badge-pill.admin { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: #fbbf24; }
+  .badge-pill.user { background: rgba(148,163,184,0.1); border: 1px solid rgba(148,163,184,0.25); color: #94a3b8; }
+  .badge-pill.imap-on { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; }
+  .badge-pill.imap-off { background: rgba(148,163,184,0.08); border: 1px solid rgba(148,163,184,0.18); color: #64748b; }
+
+  .action-btn-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .action-btn {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    padding: 5px 12px !important;
+    border-radius: 8px !important;
+    cursor: pointer;
+    transition: all 0.2s ease !important;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .action-btn-role { background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: #818cf8; }
+  .action-btn-role:hover { background: rgba(99,102,241,0.25); color: #fff; }
+  .action-btn-suspend { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); color: #fbbf24; }
+  .action-btn-suspend:hover { background: rgba(245,158,11,0.25); color: #fff; }
+  .action-btn-activate { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; }
+  .action-btn-activate:hover { background: rgba(34,197,94,0.25); color: #fff; }
+  .action-btn-delete { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #f87171; }
+  .action-btn-delete:hover { background: rgba(239,68,68,0.25); color: #fff; }
 </style>
 
 <!-- Page Header -->
@@ -48,6 +102,11 @@
     <div>
       <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 4px; font-weight:700;">Total Emails Scanned</p>
       <p style="font-size:26px; font-weight:800; color:#fff; margin:0; font-family:'JetBrains Mono',monospace;">{{ stats.total_scans }}</p>
+      <div style="display:flex; gap:8px; margin-top:2px; font-size:11px;">
+        <span style="color:#4ade80;">Safe: {{ stats.safe_scans }}</span>
+        <span style="color:#fbbf24;">Suspicious: {{ stats.suspicious_scans }}</span>
+        <span style="color:#f87171;">Dangerous: {{ stats.dangerous_scans }}</span>
+      </div>
     </div>
   </div>
 
@@ -59,14 +118,6 @@
     </div>
   </div>
 
-  <div style="background:#0f1729; border:1px solid rgba(99,102,241,0.2); border-radius:16px; padding:22px;">
-    <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 8px; font-weight:700;">Threat Verdict Breakdown</p>
-    <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:600;">
-      <span style="color:#4ade80;">Safe: {{ stats.safe_scans }}</span>
-      <span style="color:#fbbf24;">Suspicious: {{ stats.suspicious_scans }}</span>
-      <span style="color:#f87171;">Dangerous: {{ stats.dangerous_scans }}</span>
-    </div>
-  </div>
 </div>
 
 <!-- ── Live Monitor Status (all users, auto-refreshes) ── -->
@@ -117,7 +168,7 @@
     </span>
   </div>
   <div style="overflow-x:auto;">
-    <table class="history-table" aria-label="Registered user accounts">
+    <table class="history-table admin-table" aria-label="Registered user accounts">
       <thead>
         <tr>
           <th>ID</th>
@@ -138,67 +189,65 @@
         <tr class="{{ 'tr-suspended' if not u.is_active else '' }}">
           <td><span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-muted);">#{{ u.id }}</span></td>
           <td>
-            <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; align-items:center; gap:10px; white-space:nowrap;">
               <div class="user-avatar {{ 'is-suspended' if not u.is_active else '' }}">
                 {{ u.username[0]|upper }}
               </div>
               <strong style="color:#e2e8f0; font-size:14px;">{{ u.username }}</strong>
             </div>
           </td>
-          <td style="font-size:13px; color:var(--text-secondary);">{{ u.email }}</td>
-          <td style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
+          <td style="font-size:13px; color:var(--text-secondary); white-space:nowrap;">{{ u.email }}</td>
+          <td style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; white-space:nowrap;">
             {{ u.created_at[:10] if u.created_at else '—' }}
           </td>
-          <td style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
+          <td style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; white-space:nowrap;">
             {{ u.last_login[:16].replace('T', ' ') if u.last_login else (u.created_at[:16].replace('T', ' ') if u.created_at else '—') }}
           </td>
           <td>
-            <span style="display:inline-block; padding:3px 10px; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.25); border-radius:12px; font-size:12px; font-weight:700; color:#818cf8; font-family:'JetBrains Mono',monospace;">
+            <span style="display:inline-block; padding:4px 10px; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.25); border-radius:12px; font-size:12px; font-weight:700; color:#818cf8; font-family:'JetBrains Mono',monospace; white-space:nowrap;">
               {{ u.scan_count }} scans
             </span>
           </td>
           <td>
             {% if u.imap_active %}
-              <span style="color:#4ade80; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
-                <span style="width:8px; height:8px; background:#4ade80; border-radius:50%; display:inline-block;"></span> Active
-              </span>
-              <span style="font-size:11px; color:#64748b; display:block;">{{ u.imap_email }}</span>
+              <span class="badge-pill imap-on">🟢 Active</span>
+              {% if u.imap_email %}<span style="font-size:11px; color:#64748b; display:block; margin-top:2px;">{{ u.imap_email }}</span>{% endif %}
             {% else %}
-              <span style="color:#64748b; font-size:12px;">Inactive</span>
+              <span class="badge-pill imap-off">⚪ Inactive</span>
             {% endif %}
           </td>
           <!-- Account status (active/suspended) -->
           <td>
             {% if is_sa %}
-              <span style="padding:3px 10px; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.4); border-radius:12px; font-size:11px; font-weight:700; color:#fbbf24;">🔐 Protected</span>
+              <span class="badge-pill protected">🔐 Protected</span>
             {% elif u.is_active %}
-              <span style="padding:3px 10px; background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.3); border-radius:12px; font-size:11px; font-weight:700; color:#4ade80;">✓ Active</span>
+              <span class="badge-pill active">✓ Active</span>
             {% else %}
-              <span style="padding:3px 10px; background:rgba(220,38,38,0.12); border:1px solid rgba(220,38,38,0.3); border-radius:12px; font-size:11px; font-weight:700; color:#f87171;">⊗ Suspended</span>
+              <span class="badge-pill suspended">⊗ Suspended</span>
             {% endif %}
           </td>
           <!-- Role -->
           <td>
             {% if is_sa %}
-              <span style="padding:3px 10px; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.4); border-radius:12px; font-size:11px; font-weight:700; color:#fbbf24; display:inline-flex; align-items:center; gap:5px;">🔐 Super Admin</span>
+              <span class="badge-pill super-admin">👑 Super Admin</span>
             {% elif u.is_admin %}
-              <span style="padding:3px 10px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); border-radius:12px; font-size:11px; font-weight:700; color:#fbbf24;">👑 Admin</span>
+              <span class="badge-pill admin">👑 Admin</span>
             {% else %}
-              <span style="padding:3px 10px; background:rgba(148,163,184,0.1); border:1px solid rgba(148,163,184,0.2); border-radius:12px; font-size:11px; font-weight:600; color:#94a3b8;">User</span>
+              <span class="badge-pill user">User</span>
             {% endif %}
           </td>
           <!-- Actions -->
           <td>
             {% if is_sa %}
-              <span title="Protected — cannot be modified" style="font-size:18px; cursor:default; opacity:0.6;">🔒</span>
+              <span title="Protected — cannot be modified" style="font-size:16px; cursor:default; opacity:0.6;">🔒</span>
             {% elif u.id == current_user.id %}
               <span style="font-size:11px; color:var(--text-muted); font-style:italic;">(You)</span>
             {% else %}
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <div class="action-btn-group">
               <!-- Toggle Admin -->
               <form action="{{ url_for('admin_toggle_role', user_id=u.id) }}" method="post" style="display:inline;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-outline btn-sm" style="font-size:10px; padding:3px 8px; border-color:#6366f1; color:#818cf8;">
+                <button type="submit" class="action-btn action-btn-role">
                   {{ '↓ User' if u.is_admin else '↑ Admin' }}
                 </button>
               </form>
@@ -207,14 +256,14 @@
               <form action="{{ url_for('admin_suspend_user', user_id=u.id) }}" method="post" style="display:inline;"
                     onsubmit="return confirm('Suspend {{ u.username }}? They will not be able to log in.');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-outline btn-sm" style="font-size:10px; padding:3px 8px; border-color:#f59e0b; color:#fbbf24;">
+                <button type="submit" class="action-btn action-btn-suspend">
                   ⏸ Suspend
                 </button>
               </form>
               {% else %}
               <form action="{{ url_for('admin_activate_user', user_id=u.id) }}" method="post" style="display:inline;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-outline btn-sm" style="font-size:10px; padding:3px 8px; border-color:#4ade80; color:#4ade80;">
+                <button type="submit" class="action-btn action-btn-activate">
                   ▶ Activate
                 </button>
               </form>
@@ -223,7 +272,7 @@
               <form action="{{ url_for('admin_delete_user', user_id=u.id) }}" method="post" style="display:inline;"
                     onsubmit="return confirm('⚠️ Permanently delete {{ u.username }}? This cannot be undone.');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-outline btn-sm" style="font-size:10px; padding:3px 8px; border-color:#ef4444; color:#f87171;">
+                <button type="submit" class="action-btn action-btn-delete">
                   🗑 Delete
                 </button>
               </form>
@@ -294,7 +343,7 @@ async function refreshAdminMonitorStatus() {
   try {
     const res = await fetch("{{ url_for('admin_monitor_status') }}");
     if (!res.ok) return;
-    const statuses = await res.json();  // { "user_id": {running, emails_scanned, last_check, last_error} }
+    const statuses = await res.json();
 
     let activeCount = 0;
     for (const [uid, st] of Object.entries(statuses)) {
@@ -308,14 +357,18 @@ async function refreshAdminMonitorStatus() {
       card.style.borderColor = running ? "rgba(74,222,128,0.25)" : "rgba(100,116,139,0.2)";
 
       // Update dot colour
-      const dot = card.querySelector("div[style*='border-radius:50%']");
-      if (dot) dot.style.background = running ? "#4ade80" : "#475569";
+      const dot = card.querySelector(".user-mon-dot");
+      if (dot) {
+        if (running) dot.classList.add("is-running");
+        else dot.classList.remove("is-running");
+      }
 
-      // Update status label (last child of first flex row)
-      const statusSpan = card.querySelector("span[style*='margin-left:auto']");
+      // Update status label
+      const statusSpan = card.querySelector(".user-mon-label");
       if (statusSpan) {
         statusSpan.textContent = running ? "● LIVE" : "◉ OFF";
-        statusSpan.style.color = running ? "#4ade80" : "#64748b";
+        if (running) statusSpan.classList.add("is-running");
+        else statusSpan.classList.remove("is-running");
       }
 
       // Update stats
