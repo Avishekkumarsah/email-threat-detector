@@ -88,7 +88,7 @@
           <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin:0 0 3px; font-weight:600;">Your Monitor</p>
           <p style="font-size:15px; font-weight:700; margin:0; font-family:'JetBrains Mono',monospace;"
              id="my-account-status"
-             style="color:{{ '#4ade80' if status.running else '#64748b' }};">
+             data-running="{{ 'true' if status.running else 'false' }}">
             {{ '● Active' if status.running else '◉ Idle' }}
           </p>
         </div>
@@ -195,6 +195,12 @@
 
 {% block scripts %}
 <script>
+// Apply initial color for my-account-status from data attribute (avoids Jinja in style=)
+(function() {
+  var el = document.getElementById('my-account-status');
+  if (el) el.style.color = el.dataset.running === 'true' ? '#4ade80' : '#64748b';
+})();
+
 const verdictColor = {Safe: "safe", Suspicious: "suspicious", Dangerous: "dangerous"};
 const verdictIcon  = {Safe: "✅", Suspicious: "⚠️", Dangerous: "🚨"};
 

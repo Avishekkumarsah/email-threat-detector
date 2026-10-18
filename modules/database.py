@@ -59,7 +59,11 @@ def _connect_postgres():
     """Return a psycopg2 connection using DATABASE_URL."""
     import psycopg2
     import psycopg2.extras
-    conn = psycopg2.connect(config.DATABASE_URL)
+    import re
+    # Strip whitespace/newlines and remove unsupported channel_binding param
+    url = config.DATABASE_URL.strip()
+    url = re.sub(r'[&?]channel_binding=[^&]*', '', url)
+    conn = psycopg2.connect(url)
     conn.autocommit = False
     return conn
 
