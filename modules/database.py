@@ -352,7 +352,7 @@ def create_user(username: str, email: str, password_hash: str) -> int:
         if USE_POSTGRES:
             cur.execute(
                 f"INSERT INTO users (username, email, password_hash, created_at, last_login, is_active) "
-                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, 1) RETURNING id",
+                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, TRUE) RETURNING id",
                 (username.strip(), email.strip().lower(), password_hash, now, now),
             )
             row = _fetchrow(cur)
@@ -481,13 +481,14 @@ def ensure_super_admin():
         cur.execute(f"SELECT id, is_admin FROM users WHERE LOWER(email) = LOWER({ph})", (email,))
         existing = _fetchrow(cur)
         if existing:
-            cur.execute(f"UPDATE users SET is_admin = 1, is_active = 1 WHERE id = {ph}", (existing["id"],))
+            active_val = "TRUE" if USE_POSTGRES else "1"
+            cur.execute(f"UPDATE users SET is_admin = 1, is_active = {active_val} WHERE id = {ph}", (existing["id"],))
         else:
             pw_hash = generate_password_hash(config.SUPER_ADMIN_PASSWORD)
             if USE_POSTGRES:
                 cur.execute(
                     f"INSERT INTO users (username, email, password_hash, created_at, last_login, is_admin, is_active) "
-                    f"VALUES ({ph},{ph},{ph},{ph},{ph},1,1)",
+                    f"VALUES ({ph},{ph},{ph},{ph},{ph},1,TRUE)",
                     (username, email, pw_hash, now, now),
                 )
             else:
@@ -509,7 +510,8 @@ def suspend_user(user_id: int):
     conn = _connect()
     try:
         cur = _cursor(conn)
-        cur.execute(f"UPDATE users SET is_active = 0 WHERE id = {ph}", (user_id,))
+        active_val = "FALSE" if USE_POSTGRES else "0"
+        cur.execute(f"UPDATE users SET is_active = {active_val} WHERE id = {ph}", (user_id,))
         conn.commit()
     finally:
         _close(conn)
@@ -521,7 +523,8 @@ def activate_user(user_id: int):
     conn = _connect()
     try:
         cur = _cursor(conn)
-        cur.execute(f"UPDATE users SET is_active = 1 WHERE id = {ph}", (user_id,))
+        active_val = "TRUE" if USE_POSTGRES else "1"
+        cur.execute(f"UPDATE users SET is_active = {active_val} WHERE id = {ph}", (user_id,))
         conn.commit()
     finally:
         _close(conn)
@@ -582,7 +585,7 @@ def save_imap_credentials(user_id: int, host: str, port: int, email: str,
                     imap_email     = EXCLUDED.imap_email,
                     encrypted_pass = EXCLUDED.encrypted_pass,
                     is_active      = EXCLUDED.is_active
-            """, (user_id, host, port, email, encrypted, 1 if is_active else 0))
+            """, (user_id, host, port, email, encrypted, bool(is_active)))
         else:
             cur.execute(f"""
                 INSERT INTO imap_credentials (user_id, imap_host, imap_port, imap_email, encrypted_pass, is_active)
@@ -615,9 +618,10 @@ def set_imap_active(user_id: int, is_active: bool):
     conn = _connect()
     try:
         cur = _cursor(conn)
+        active_val = bool(is_active) if USE_POSTGRES else (1 if is_active else 0)
         cur.execute(
             f"UPDATE imap_credentials SET is_active = {ph} WHERE user_id = {ph}",
-            (1 if is_active else 0, user_id),
+            (active_val, user_id),
         )
         conn.commit()
     finally:
@@ -625,11 +629,12 @@ def set_imap_active(user_id: int, is_active: bool):
 
 
 def get_all_active_imap_credentials() -> list[dict]:
-    """Return all rows where is_active=1 (used by inbox_monitor)."""
+    """Return all rows where is_active is true (used by inbox_monitor)."""
     conn = _connect()
     try:
         cur = _cursor(conn)
-        cur.execute("SELECT * FROM imap_credentials WHERE is_active = 1")
+        active_clause = "is_active = TRUE" if USE_POSTGRES else "is_active = 1"
+        cur.execute(f"SELECT * FROM imap_credentials WHERE {active_clause}")
         return _fetchall(cur)
     finally:
         _close(conn)
@@ -757,17 +762,19 @@ def get_admin_dashboard_stats() -> dict:
         total_users = (_fetchrow(cur) or {}).get("cnt", 0)
 
         # Currently active (non-suspended) users
-        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE is_active = 1")
+        act_clause = "is_active = TRUE" if USE_POSTGRES else "is_active = 1"
+        susp_clause = "is_active = FALSE" if USE_POSTGRES else "is_active = 0"
+        cur.execute(f"SELECT COUNT(*) as cnt FROM users WHERE {act_clause}")
         active_users = (_fetchrow(cur) or {}).get("cnt", 0)
 
         # Suspended users
-        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE is_active = 0")
+        cur.execute(f"SELECT COUNT(*) as cnt FROM users WHERE {susp_clause}")
         suspended_users = (_fetchrow(cur) or {}).get("cnt", 0)
 
         cur.execute("SELECT COUNT(*) as cnt FROM scans")
         total_scans = (_fetchrow(cur) or {}).get("cnt", 0)
 
-        cur.execute("SELECT COUNT(*) as cnt FROM imap_credentials WHERE is_active = 1")
+        cur.execute(f"SELECT COUNT(*) as cnt FROM imap_credentials WHERE {act_clause}")
         active_monitors = (_fetchrow(cur) or {}).get("cnt", 0)
 
         cur.execute("SELECT verdict, COUNT(*) as cnt FROM scans GROUP BY verdict")
